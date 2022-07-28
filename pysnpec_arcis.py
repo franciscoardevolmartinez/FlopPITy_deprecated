@@ -210,7 +210,7 @@ for r in range(len(posteriors),len(posteriors)+num_rounds):
     parargs=[]
     for i in range(args.processes-1):
         parargs.append((np_theta[i*samples_per_process:(i+1)*samples_per_process], args.output, r, args.input, args.obs, i))
-    parargs.append((np_theta[(args.processes-1)*samples_per_process:], args.output, r, args.input, args.obs, args.processes))
+    parargs.append((np_theta[(args.processes-1)*samples_per_process:], args.output, r, args.input, args.obs, args.processes-1))
     
     tic=time()
     pool = Pool(processes = args.processes)
