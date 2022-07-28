@@ -205,12 +205,24 @@ for r in range(len(posteriors),len(posteriors)+num_rounds):
     # print('itheta', itheta[0:2])
     np_theta = theta.detach().numpy().reshape([-1, len(prior_bounds)])
     
+    if args.dont_plot and args.ynorm:
+        fig1 = corner(yscaler.inverse_transform(np_theta), smooth=0.5, range=prior_bounds)
+        plt.savefig(args.output+'corner_'+str(r)+'.pdf', bbox_inches='tight')
+    elif args.dont_plot:
+        fig1 = corner(np_theta, smooth=0.5, range=prior_bounds)
+        plt.savefig(args.output+'corner_'+str(r)+'.pdf', bbox_inches='tight')
+    
     samples_per_process = samples_per_round[r]//args.processes
     
     parargs=[]
+    if args.ynorm:
+        params=yscaler.inverse_transform(np_theta)
+    else:
+        params = np_theta
+        
     for i in range(args.processes-1):
-        parargs.append((np_theta[i*samples_per_process:(i+1)*samples_per_process], args.output, r, args.input, args.obs, i))
-    parargs.append((np_theta[(args.processes-1)*samples_per_process:], args.output, r, args.input, args.obs, args.processes-1))
+        parargs.append((params[i*samples_per_process:(i+1)*samples_per_process], args.output, r, args.input, args.obs, i))
+    parargs.append((params[(args.processes-1)*samples_per_process:], args.output, r, args.input, args.obs, args.processes-1))
     
     tic=time()
     pool = Pool(processes = args.processes)
