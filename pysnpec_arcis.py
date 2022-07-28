@@ -29,7 +29,7 @@ from tqdm import trange
 logging.getLogger('matplotlib').setLevel(logging.WARNING)
 import matplotlib.pyplot as plt
 from corner import corner
-from multiprocessing import Process
+from multiprocessing import Process, Pool
 from simulator import simulator
 
 supertic = time()
@@ -205,22 +205,20 @@ for r in range(len(posteriors),len(posteriors)+num_rounds):
     # print('itheta', itheta[0:2])
     np_theta = theta.detach().numpy().reshape([-1, len(prior_bounds)])
     
+    samples_per_process = samples_per_round[r]//args.processes
     
-    process_args1 = (yscaler.inverse_transform(np_theta[:samples_per_round[r]//2]) if args.ynorm else np_theta, args.output, r, args.input, args.obs)
-    p1=process(target=simulator, args=process_args1)
+    parargs=[]
+    for i in range(args.processes-1):
+        parargs.append((np_theta[i*samples_per_process:(i+1)*samples_per_process], args.output, r, args.input, args.obs, i))
+    parargs.append((np_theta[(args.processes-1)*samples_per_process:], args.output, r, args.input, args.obs, args.processes))
     
-    process_args2 = (yscaler.inverse_transform(np_theta[samples_per_round[r]//2:]) if args.ynorm else np_theta, args.output, r, args.input, args.obs)
-    p2=process(target=simulator, args=process_args2)  
+    tic=time()
+    pool = Pool(processes = args.processes)
+    Xes = pool.starmap(simulator, parargs)
+    print('Time elapsed: ', time()-tic)
+    logging.info(('Time elapsed: ', time()-tic))
     
-    p1.start()
-    p2.start()
-    p1.join()
-    p2.join()
-    
-    print(p1)
-    print(p2)
-    
-    ### CALL TO ARCIS
+#     ### CALL TO ARCIS
 #     fname = args.output+'round_'+str(r)+'_samples.dat'
 #     # y_nat[:,2:5] = 10**y_nat[:,2:5]
 #     if args.ynorm:
@@ -259,6 +257,8 @@ for r in range(len(posteriors),len(posteriors)+num_rounds):
 #             X[i] = np.loadtxt(model_dir+'/trans')[:,1]# + x_o[:,2]*np.random.randn(1, x_o.shape[0])
 #         except:
 #             print(model_dir)
+
+    X = np.concatenate(Xes)
             
     if args.dont_plot:
         plt.figure(figsize=(15,5))
