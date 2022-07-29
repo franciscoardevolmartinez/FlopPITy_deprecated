@@ -203,7 +203,7 @@ for r in range(len(posteriors),len(posteriors)+num_rounds):
     logging.info('Drawing '+str(samples_per_round[r])+' samples')
     theta = proposal.sample((samples_per_round[r],))
     # print('itheta', itheta[0:2])
-    np_theta = theta.detach().numpy().reshape([-1, len(prior_bounds)])
+    np_theta = theta.cpu().detach().numpy().reshape([-1, len(prior_bounds)])
     
     if args.dont_plot and args.ynorm:
         fig1 = corner(yscaler.inverse_transform(np_theta), smooth=0.5, range=prior_bounds)
