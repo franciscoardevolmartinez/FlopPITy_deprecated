@@ -284,16 +284,16 @@ for r in range(len(posteriors),len(posteriors)+num_rounds):
     
     # theta, x = simulate_for_sbi(simulator, proposal, num_simulations=samples_per_round[r], show_progress_bar=False) 
     
-    theta = torch.tensor(np.repeat(np_theta, args.naug, axis=0), dtype=torch.float32)
+    theta = torch.tensor(np.repeat(np_theta, args.naug, axis=0), dtype=torch.float32, device=device)
     X_aug = np.repeat(X, args.naug, axis=0) + x_o[:,2]*np.random.randn(samples_per_round[r]*args.naug, x_o.shape[0])
     if r==0 and args.xnorm:
         xscaler = StandardScaler().fit(X)
         pickle.dump(xscaler, open(args.output+'/xscaler.p', 'wb'))
     ##adding comments
     if args.xnorm:
-        x = torch.tensor(xscaler.transform(X_aug), dtype=torch.float32)
+        x = torch.tensor(xscaler.transform(X_aug), dtype=torch.float32, device=device)
     else:
-        x = torch.tensor(X_aug, dtype=torch.float32)
+        x = torch.tensor(X_aug, dtype=torch.float32, device=device)
     
     # ### This is just for debugging
     # if args.dont_plot:
