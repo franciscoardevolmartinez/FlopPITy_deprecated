@@ -161,9 +161,9 @@ else:
     posteriors = torch.load(args.output+'/posteriors.pt')
     if args.xnorm:
         xscaler = pickle.load(open(args.output+'/xscaler.p', 'rb'))
-        proposal = posterior.set_default_x(xscaler.transform(x_o[:,1].reshape(1,-1)))
+        proposal = posteriors[-1].set_default_x(xscaler.transform(x_o[:,1].reshape(1,-1)))
     else:
-        proposal = posterior.set_default_x(x_o[:,1])
+        proposal = posteriors[-1].set_default_x(x_o[:,1])
 
 # simulator, prior = prepare_for_sbi(arcis_sim, prior)
 
@@ -196,7 +196,7 @@ print('Training multi-round inference')
 logging.info('Training multi-round inference')
 
 
-for r in range(len(posteriors),len(posteriors)+num_rounds):
+for r in range(len(posteriors),num_rounds):
     print('\n')
     print('\n **** Training round ', r)
     logging.info('Round '+str(r))
