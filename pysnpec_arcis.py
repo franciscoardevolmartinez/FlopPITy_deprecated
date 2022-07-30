@@ -271,6 +271,8 @@ for r in range(len(posteriors),len(posteriors)+num_rounds):
 #             print(model_dir)
 
     X = np.concatenate(Xes)
+    
+    np.save(args.output+'/X_round_'+str(r)+'.npy', X)
             
     if args.dont_plot:
         plt.figure(figsize=(15,5))
