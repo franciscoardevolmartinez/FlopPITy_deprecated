@@ -160,7 +160,7 @@ if args.resume:
 else:
     posteriors = torch.load(args.output+'/posteriors.pt')
     if args.xnorm:
-        xscaler = pickle.load(args.output+'/xscaler.p', 'rb')
+        xscaler = pickle.load(open(args.output+'/xscaler.p', 'rb'))
         proposal = posterior.set_default_x(xscaler.transform(x_o[:,1].reshape(1,-1)))
     else:
         proposal = posterior.set_default_x(x_o[:,1])
