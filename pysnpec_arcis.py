@@ -331,7 +331,8 @@ for r in range(len(posteriors),num_rounds):
     else:
         proposal = posterior.set_default_x(x_o[:,1])
     if args.clean:
-        os.system('rm -rf '+args.output + 'round_'+str(r)+str(n)+'_out/')
+        for j in range(args.processes):
+            os.system('rm -rf '+args.output + 'round_'+str(r)+str(j)+'_out/')
 
 print('Drawing samples ')
 logging.info('Drawing samples ')
