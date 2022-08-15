@@ -372,8 +372,12 @@ samples = []
 for j in range(num_rounds):
     print('Drawing samples from round ', j)
     logging.info('Drawing samples from round ' + str(j))
-    if args.xnorm:
+    if args.xnorm and not args.do_pca:
         obs = torch.tensor(xscaler.transform(x_o[:,1].reshape(1,-1)), device=device)
+    elif args.do_pca and not args.xnorm:
+        obs = torch.tensor(pca.transform(x_o[:,1].reshape(1,-1)), device=device)
+    elif args.do_pca and args.xnorm:
+        obs = torch.tensor(xscaler.transform(pca.transform(x_o[:,1].reshape(1,-1))), device=device)
     else:
         obs = torch.tensor(x_o[:,1].reshape(1,-1), device=device)
     posterior = posteriors[j]
