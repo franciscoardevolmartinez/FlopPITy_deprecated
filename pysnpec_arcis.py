@@ -13,6 +13,7 @@ warnings.filterwarnings("ignore", category=UserWarning)
 from sbi import utils as utils
 from sbi import analysis as analysis
 from sbi.inference.base import infer
+from sklearn.decomposition import PCA
 import pickle
 import numpy as np
 from sklearn.preprocessing import StandardScaler
@@ -47,6 +48,8 @@ def parse_args():
     parser.add_argument('-num_rounds', type=int, default=10, help='Number of rounds to train for. Default: 10.')
     parser.add_argument('-samples_per_round', type=str, default='1000', help='Number of samples to draw for training each round. If a single value, that number of samples will be drawn for num_rounds rounds. If multiple values, at each round, the number of samples specified will be drawn. Default: 1000.')
     parser.add_argument('-hidden', type=int, default=50)
+    parser.add_argument('-do_pca', action='store_true')
+    parser.add_argument('-n_pca', type=int, default=50)
     parser.add_argument('-transforms', type=int, default=5)
     parser.add_argument('-bins', type=int, default=5)
     parser.add_argument('-blocks', type=int, default=2)
@@ -159,9 +162,16 @@ if args.resume:
     proposal = prior
 else:
     posteriors = torch.load(args.output+'/posteriors.pt')
-    if args.xnorm:
+    if args.xnorm and not args.do_pca:
         xscaler = pickle.load(open(args.output+'/xscaler.p', 'rb'))
         proposal = posteriors[-1].set_default_x(xscaler.transform(x_o[:,1].reshape(1,-1)))
+    elif args.do_pca and not args.xnorm:
+        pca = pickle.load(open(args.output+'/pca.p', 'rb'))
+        proposal = posteriors[-1].set_default_x(pca.transform(x_o[:,1].reshape(1,-1)))
+    elif args.do_pca and args.xnorm:
+        xscaler = pickle.load(open(args.output+'/xscaler.p', 'rb'))
+        pca = pickle.load(open(args.output+'/pca.p', 'rb'))
+        proposal = posteriors[-1].set_default_x(xscaler.transform(pca.transform(x_o[:,1].reshape(1,-1))))
     else:
         proposal = posteriors[-1].set_default_x(x_o[:,1])
 
@@ -288,12 +298,29 @@ for r in range(len(posteriors),num_rounds):
     
     theta = torch.tensor(np.repeat(np_theta, args.naug, axis=0), dtype=torch.float32, device=device)
     X_aug = np.repeat(X, args.naug, axis=0) + x_o[:,2]*np.random.randn(samples_per_round[r]*args.naug, x_o.shape[0])
-    if r==0 and args.xnorm:
-        xscaler = StandardScaler().fit(X)
-        pickle.dump(xscaler, open(args.output+'/xscaler.p', 'wb'))
+    if r==0:
+        if args.xnorm and not args.do_pca:
+            xscaler = StandardScaler().fit(X)
+            pickle.dump(xscaler, open(args.output+'/xscaler.p', 'wb'))
+        elif args.do_pca and not args.xnorm:
+            pca = PCA(n_components=args.n_pca)
+            pca.fit(X)
+            pickle.dump(pca, open(args.output+'/pca.p', 'wb'))
+        elif args.do_pca and args.xnorm:
+            #do pca first
+            pca = PCA(n_components=args.n_pca)
+            pca.fit(X)
+            pickle.dump(pca, open(args.output+'/pca.p', 'wb'))
+            #then do xnorm
+            xscaler = StandardScaler().fit(pca.transform(X))
+            pickle.dump(xscaler, open(args.output+'/xscaler.p', 'wb'))
     ##adding comments
-    if args.xnorm:
+    if args.xnorm and not args.do_pca:
         x = torch.tensor(xscaler.transform(X_aug), dtype=torch.float32, device=device)
+    elif args.do_pca and not args.xnorm:
+        x = torch.tensor(pca.transform(X_aug), dtype=torch.float32, device=device)
+    elif args.do_pca and args.xnorm:
+        x = torch.tensor(xscaler.transform(pca.transform(X_aug)), dtype=torch.float32, device=device)
     else:
         x = torch.tensor(X_aug, dtype=torch.float32, device=device)
     
@@ -326,8 +353,13 @@ for r in range(len(posteriors),num_rounds):
     print('Saving posteriors ')
     logging.info('Saving posteriors ')
     torch.save(posteriors, args.output+'/posteriors.pt')
-    if args.xnorm:
+    
+    if args.xnorm and not args.do_pca:
         proposal = posterior.set_default_x(xscaler.transform(x_o[:,1].reshape(1,-1)))
+    elif args.do_pca and not args.xnorm:
+        proposal = posterior.set_default_x(pca.transform(x_o[:,1].reshape(1,-1)))
+    elif args.xnorm and args.do_pca:
+        proposal = posterior.set_default_x(xscaler.transform(pca.transform(x_o[:,1].reshape(1,-1))))
     else:
         proposal = posterior.set_default_x(x_o[:,1])
     if args.clean:
