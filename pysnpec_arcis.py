@@ -140,6 +140,7 @@ prior_bounds = np.loadtxt(args.prior)
 
 if args.ynorm:
     yscaler = Normalizer(prior_bounds)
+    pickle.dump(yscaler, open(args.output+'/yscaler.p', 'wb'))
 
     prior_min = torch.tensor(yscaler.transform(prior_bounds[:,0].reshape(1, -1)).reshape(-1))
     prior_max = torch.tensor(yscaler.transform(prior_bounds[:,1].reshape(1, -1)).reshape(-1))
@@ -206,7 +207,7 @@ print('Training multi-round inference')
 logging.info('Training multi-round inference')
 
 
-for r in range(len(posteriors),num_rounds):
+for r in range(len(posteriors), num_rounds):
     print('\n')
     print('\n **** Training round ', r)
     logging.info('Round '+str(r))
@@ -393,15 +394,18 @@ pickle.dump(samples, open(args.output+'/samples.p', 'wb'))
 
 np.savetxt(args.output+'/post_equal_weights.txt', samples[-1])
 
-if args.dont_plot and args.ynorm:
-    fig1 = corner(yscaler.inverse_transform(samples[-1]), smooth=0.5, range=prior_bounds)
-    plt.savefig(args.output+'corner_'+str(r+1)+'.pdf', bbox_inches='tight')
-elif args.dont_plot:
+if args.dont_plot:
     fig1 = corner(samples[-1], smooth=0.5, range=prior_bounds)
-    plt.savefig(args.output+'corner_'+str(r+1)+'.pdf', bbox_inches='tight')
+    plt.savefig(args.output+'corner_'+str(num_rounds)+'.pdf', bbox_inches='tight')
 
-if args.ynorm:
-    pickle.dump(yscaler, open(args.output+'/yscaler.p', 'wb'))
+# if args.dont_plot and args.ynorm:
+#     print('option 1')
+#     fig1 = corner(yscaler.inverse_transform(samples[-1]), smooth=0.5, range=prior_bounds)
+#     plt.savefig(args.output+'corner_'+str(r+1)+'.pdf', bbox_inches='tight')
+# elif args.dont_plot and not args.ynorm:
+#     print('option 2')
+#     fig1 = corner(samples[-1], smooth=0.5, range=prior_bounds)
+#     plt.savefig(args.output+'corner_'+str(r+1)+'.pdf', bbox_inches='tight')
 
 print('Time elapsed: ', time()-supertic)
 logging.info('Time elapsed: '+str(time()-supertic))
