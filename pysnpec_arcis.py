@@ -65,6 +65,8 @@ def parse_args():
     parser.add_argument('-removeR', action='store_true')
     parser.add_argument('-resume', action='store_false')
     parser.add_argument('-processes', type=int, default=1)
+    parser.add_argument('-scaleR', action='store_true')
+    parser.add_argument('-patience', type=int, default=20)
     return parser.parse_args()
 
 ### CREATE ARCIS SIMULATOR ###
@@ -108,6 +110,9 @@ device = args.device
 # noise   = np.loadtxt('noise.dat')
 
 ### Normalize parameters
+
+def scaleR(obs, model):
+    return np.sum(obs)/np.sum(model, axis=1)
 
 class Normalizer():
     def __init__(self, prior_bounds):
@@ -290,6 +295,7 @@ for r in range(len(posteriors), num_rounds):
         plt.errorbar(x = x_o[:,0], y=x_o[:,1], yerr=x_o[:,2], color='red', ls='', fmt='.', label='Observation')
         plt.plot(x_o[:,0], np.median(X, axis=0), c='mediumblue', label='Round '+str(r)+' models')
         plt.fill_between(x_o[:,0], np.percentile(X, 84, axis=0), np.percentile(X, 16, axis=0), color='mediumblue', alpha=0.4)
+        plt.fill_between(x_o[:,0], np.percentile(X, 97.8, axis=0), np.percentile(X, 2.2, axis=0), color='mediumblue', alpha=0.1)
         plt.xlabel(r'Wavelength ($\mu$m)')
         plt.ylabel('Transit depth')
         plt.legend()
@@ -335,7 +341,7 @@ for r in range(len(posteriors), num_rounds):
     logging.info('Training...')
     tic = time()
     density_estimator = inference.append_simulations(theta, x, proposal=proposal).train(
-        discard_prior_samples=args.discard_prior_samples, use_combined_loss=args.combined, show_train_summary=True)
+        discard_prior_samples=args.discard_prior_samples, use_combined_loss=args.combined, show_train_summary=True, stop_after_epochs=args.patience)
 
     print('\n Time elapsed: '+str(time()-tic))
     logging.info('Time elapsed: '+str(time()-tic))
