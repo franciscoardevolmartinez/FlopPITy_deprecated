@@ -67,6 +67,7 @@ def parse_args():
     parser.add_argument('-processes', type=int, default=1)
     parser.add_argument('-scaleR', action='store_true')
     parser.add_argument('-patience', type=int, default=20)
+    parser.add_argument('-atoms', type=int, default=10)
     return parser.parse_args()
 
 ### CREATE ARCIS SIMULATOR ###
@@ -288,6 +289,12 @@ for r in range(len(posteriors), num_rounds):
 
     X = np.concatenate(Xes)
     
+    if args.scaleR:
+        scale_R = R_scale(x_o[:,1], X)
+        
+        scaled_R = np.sqrt(scale_R)*np_theta[:,-2]
+        np_theta[:,-2] = scaled_R
+    
     np.save(args.output+'/X_round_'+str(r)+'.npy', X)
             
     if args.dont_plot:
@@ -341,7 +348,8 @@ for r in range(len(posteriors), num_rounds):
     logging.info('Training...')
     tic = time()
     density_estimator = inference.append_simulations(theta, x, proposal=proposal).train(
-        discard_prior_samples=args.discard_prior_samples, use_combined_loss=args.combined, show_train_summary=True, stop_after_epochs=args.patience)
+        discard_prior_samples=args.discard_prior_samples, use_combined_loss=args.combined, show_train_summary=True, 
+        stop_after_epochs=args.patience, num_atoms=args.atoms)
 
     print('\n Time elapsed: '+str(time()-tic))
     logging.info('Time elapsed: '+str(time()-tic))
