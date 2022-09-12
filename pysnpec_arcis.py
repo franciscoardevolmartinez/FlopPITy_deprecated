@@ -22,7 +22,7 @@ from sbi.utils.get_nn_models import posterior_nn
 from sbi import utils as utils
 from sbi import analysis as analysis
 # import ultranest
-from sbi.inference import SNPE_C
+from sbi.inference import SNPE_C, SNLE_A, SNRE_B
 from time import time
 import logging
 import os
@@ -66,8 +66,10 @@ def parse_args():
     parser.add_argument('-resume', action='store_false')
     parser.add_argument('-processes', type=int, default=1)
     parser.add_argument('-scaleR', action='store_true')
+    parser.add_argument('-retrain_from_scratch', action='store_true')
     parser.add_argument('-patience', type=int, default=20)
     parser.add_argument('-atoms', type=int, default=10)
+    parser.add_argument('-method', type=str, default='snpe')
     return parser.parse_args()
 
 ### CREATE ARCIS SIMULATOR ###
@@ -146,6 +148,7 @@ prior_bounds = np.loadtxt(args.prior)
 
 if args.ynorm:
     yscaler = Normalizer(prior_bounds)
+    # yscaler = StandardScaler().fit()
     pickle.dump(yscaler, open(args.output+'/yscaler.p', 'wb'))
 
     prior_min = torch.tensor(yscaler.transform(prior_bounds[:,0].reshape(1, -1)).reshape(-1))
@@ -188,11 +191,16 @@ if args.model == 'nsf':
     if args.embedding:
         neural_posterior = posterior_nn(model='nsf', hidden_features=args.hidden, num_transforms=args.transforms, num_bins=args.bins, num_blocks=args.blocks, embedding_net=embedding_net)
     else:
-        neural_posterior = posterior_nn(model='nsf', hidden_features=args.hidden, num_transforms=args.transforms, num_bins=args.bins, num_blocks=args.blocks)
+        neural_posterior = posterior_nn(model='nsf', hidden_features=args.hidden, num_transforms=args.transforms, num_bins=args.bins, num_blocks=args.blocks)    
 else:
     neural_posterior = utils.posterior_nn(model=args.model)
 
-inference = SNPE_C(prior = prior, density_estimator=neural_posterior, device=device)
+if args.method=='snpe':
+    inference = SNPE_C(prior = prior, density_estimator=neural_posterior, device=device)
+elif args.method=='snle':
+    inference = SNLE_A(prior = prior, density_estimator=neural_posterior, device=device)
+elif args.method=='snre':
+    inference = SNRE_B(prior = prior, density_estimator=neural_posterior, device=device)
 
 nsamples = args.samples_per_round
 
@@ -347,9 +355,14 @@ for r in range(len(posteriors), num_rounds):
     
     logging.info('Training...')
     tic = time()
-    density_estimator = inference.append_simulations(theta, x, proposal=proposal).train(
-        discard_prior_samples=args.discard_prior_samples, use_combined_loss=args.combined, show_train_summary=True, 
-        stop_after_epochs=args.patience, num_atoms=args.atoms)
+    if args.method=='snpe':
+        density_estimator = inference.append_simulations(theta, x, proposal=proposal).train(
+            discard_prior_samples=args.discard_prior_samples, use_combined_loss=args.combined, show_train_summary=True, 
+            stop_after_epochs=args.patience, num_atoms=args.atoms, retrain_from_scratch=args.retrain_from_scratch)
+    elif args.method=='snle':
+        density_estimator = inference.append_simulations(theta, x).train(
+            discard_prior_samples=args.discard_prior_samples, show_train_summary=True, 
+            stop_after_epochs=args.patience)
 
     print('\n Time elapsed: '+str(time()-tic))
     logging.info('Time elapsed: '+str(time()-tic))
