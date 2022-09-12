@@ -70,6 +70,7 @@ def parse_args():
     parser.add_argument('-patience', type=int, default=20)
     parser.add_argument('-atoms', type=int, default=10)
     parser.add_argument('-method', type=str, default='snpe')
+    parser.add_argument('-sample_with', type=str, default='rejection')
     return parser.parse_args()
 
 ### CREATE ARCIS SIMULATOR ###
@@ -367,16 +368,16 @@ for r in range(len(posteriors), num_rounds):
     print('\n Time elapsed: '+str(time()-tic))
     logging.info('Time elapsed: '+str(time()-tic))
     try:
-        posterior = inference.build_posterior(density_estimator)
+        posterior = inference.build_posterior(density_estimator, sample_with=args.sample_with)
     except:
         print('\n OH NO!, IT HAPPENED!')
         logging.info('OH NO!, IT HAPPENED!')
         try:
-            posterior = inference.build_posterior(density_estimator)
+            posterior = inference.build_posterior(density_estimator, sample_with=args.sample_with)
         except:
             print('\n OH NO!, IT HAPPENED *AGAIN*!?')
             logging.info('OH NO!, IT HAPPENED *AGAIN*!?')
-            posterior = inference.build_posterior(density_estimator)
+            posterior = inference.build_posterior(density_estimator, sample_with=args.sample_with)
     posteriors.append(posterior)
     print('Saving posteriors ')
     logging.info('Saving posteriors ')
