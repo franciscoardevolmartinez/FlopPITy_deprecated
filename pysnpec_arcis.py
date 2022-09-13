@@ -359,7 +359,8 @@ for r in range(len(posteriors), num_rounds):
     if args.method=='snpe':
         density_estimator = inference.append_simulations(theta, x, proposal=proposal).train(
             discard_prior_samples=args.discard_prior_samples, use_combined_loss=args.combined, show_train_summary=True, 
-            stop_after_epochs=args.patience, num_atoms=args.atoms, retrain_from_scratch=args.retrain_from_scratch)
+            stop_after_epochs=args.patience, num_atoms=args.atoms, retrain_from_scratch=args.retrain_from_scratch, 
+            force_first_round_loss=True)
     elif args.method=='snle':
         density_estimator = inference.append_simulations(theta, x).train(
             discard_prior_samples=args.discard_prior_samples, show_train_summary=True, 
