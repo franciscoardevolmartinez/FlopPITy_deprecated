@@ -71,6 +71,8 @@ def parse_args():
     parser.add_argument('-atoms', type=int, default=10)
     parser.add_argument('-method', type=str, default='snpe')
     parser.add_argument('-sample_with', type=str, default='rejection')
+    parser.add_argument('-reuse_prior_samples', action='store_true')
+    parser.add_argument('-samples_dir', type=str)
     return parser.parse_args()
 
 ### CREATE ARCIS SIMULATOR ###
@@ -226,10 +228,78 @@ for r in range(len(posteriors), num_rounds):
     print('\n')
     print('\n **** Training round ', r)
     logging.info('Round '+str(r))
-    logging.info('Drawing '+str(samples_per_round[r])+' samples')
-    theta = proposal.sample((samples_per_round[r],))
-    # print('itheta', itheta[0:2])
-    np_theta = theta.cpu().detach().numpy().reshape([-1, len(prior_bounds)])
+    
+    if args.reuse_prior_samples and r==0:
+        print('Reusing prior samples')
+        logging.info('Reusing prior samples')
+        try:
+            X = np.load(args.output+'/X_round_'+str(r)+'.npy')[:samples_per_round[r]]
+            np_theta = np.load(args.output+'/Y_round_'+str(r)+'.npy')[:samples_per_round[r]]
+        except:
+            print("Not enough samples!")
+    else:
+        logging.info('Drawing '+str(samples_per_round[r])+' samples')
+        print(samples_per_round[r])
+        theta = proposal.sample((samples_per_round[r],))
+        # print('itheta', itheta[0:2])
+        np_theta = theta.cpu().detach().numpy().reshape([-1, len(prior_bounds)])
+    
+        samples_per_process = samples_per_round[r]//args.processes
+
+        parargs=[]
+        if args.ynorm:
+            params=yscaler.inverse_transform(np_theta)
+        else:
+            params = np_theta
+
+        for i in range(args.processes-1):
+            parargs.append((params[i*samples_per_process:(i+1)*samples_per_process], args.output, r, args.input, args.obs, i))
+        parargs.append((params[(args.processes-1)*samples_per_process:], args.output, r, args.input, args.obs, args.processes-1))
+
+        tic=time()
+        pool = Pool(processes = args.processes)
+        Xes = pool.starmap(simulator, parargs)
+        print('Time elapsed: ', time()-tic)
+        logging.info(('Time elapsed: ', time()-tic))
+
+        X_con = np.concatenate(Xes)
+        
+        sm = np.sum(X_con, axis=1)
+        
+        X = X_con[sm!=0]
+        
+        while len(X)<samples_per_round[r]:
+            print('ARCiS crashed, computing remaining ' +str(samples_per_round[r]-len(X))+' models.')
+            logging.info('ARCiS crashed, computing remaining ' +str(samples_per_round[r]-len(X))+' models.')
+            samples_per_process = samples_per_round[r]-len(X)//args.processes
+
+            parargs=[]
+            if args.ynorm:
+                params=yscaler.inverse_transform(np_theta[sm==0])
+            else:
+                params = np_theta[sm==0]
+
+            for i in range(args.processes-1):
+                parargs.append((params[i*samples_per_process:(i+1)*samples_per_process], args.output, r, args.input, args.obs, i))
+            parargs.append((params[(args.processes-1)*samples_per_process:], args.output, r, args.input, args.obs, args.processes-1))
+
+            tic=time()
+            pool = Pool(processes = args.processes)
+            Xes2 = pool.starmap(simulator, parargs)
+            print('Time elapsed: ', time()-tic)
+            logging.info(('Time elapsed: ', time()-tic))
+            
+            X_con2 = np.concatenate((X, Xes2))
+            sm = np.sum(X_con2, axis=1)
+        
+            X = X_con[sm!=0]
+        
+    
+    if args.scaleR:
+        scale_R = R_scale(x_o[:,1], X)
+        
+        scaled_R = np.sqrt(scale_R)*np_theta[:,-2]
+        np_theta[:,-2] = scaled_R
     
     if args.dont_plot and args.ynorm:
         fig1 = corner(yscaler.inverse_transform(np_theta), smooth=0.5, range=prior_bounds)
@@ -238,73 +308,8 @@ for r in range(len(posteriors), num_rounds):
         fig1 = corner(np_theta, smooth=0.5, range=prior_bounds)
         plt.savefig(args.output+'corner_'+str(r)+'.pdf', bbox_inches='tight')
     
-    samples_per_process = samples_per_round[r]//args.processes
-    
-    parargs=[]
-    if args.ynorm:
-        params=yscaler.inverse_transform(np_theta)
-    else:
-        params = np_theta
-        
-    for i in range(args.processes-1):
-        parargs.append((params[i*samples_per_process:(i+1)*samples_per_process], args.output, r, args.input, args.obs, i))
-    parargs.append((params[(args.processes-1)*samples_per_process:], args.output, r, args.input, args.obs, args.processes-1))
-    
-    tic=time()
-    pool = Pool(processes = args.processes)
-    Xes = pool.starmap(simulator, parargs)
-    print('Time elapsed: ', time()-tic)
-    logging.info(('Time elapsed: ', time()-tic))
-    
-#     ### CALL TO ARCIS
-#     fname = args.output+'round_'+str(r)+'_samples.dat'
-#     # y_nat[:,2:5] = 10**y_nat[:,2:5]
-#     if args.ynorm:
-#         np.savetxt(fname, yscaler.inverse_transform(np_theta))
-#         if args.dont_plot:
-#             fig1 = corner(yscaler.inverse_transform(np_theta), smooth=0.5, range=prior_bounds)
-#             plt.savefig(args.output+'corner_'+str(r)+'.pdf', bbox_inches='tight')
-#     else:
-#         np.savetxt(fname, np_theta)
-#         if args.dont_plot:
-#             fig1 = corner(np_theta, smooth=0.5, range=prior_bounds)
-#             plt.savefig(args.output+'corner_'+str(r)+'.pdf', bbox_inches='tight')
-        
-#     print('Running ARCiS')
-#     logging.info('Running ARCiS')
-#     os.system('cd .. ; '+ARCiS + ' '+args.input + ' -o '+args.output+'round_'+str(r)+'_out -s parametergridfile='+fname+' -s obs01:file='+args.obs)
-    
-#     X = np.zeros([samples_per_round[r],x_o.shape[0]])
-
-#     dirx = args.output + 'round_'+str(r)+'_out/'
-    
-#     print('Reading ARCiS output')
-#     logging.info('Reading ARCiS output')
-    
-#     for i in trange(samples_per_round[r]):
-#         if i+1<10:
-#             model_dir = dirx + 'model00000'+str(i+1)
-#         elif i+1<100:
-#             model_dir = dirx + 'model0000'+str(i+1)
-#         elif i+1<1000:
-#             model_dir = dirx + 'model000'+str(i+1)
-#         elif i+1<1e4:
-#             model_dir = dirx + 'model00'+str(i+1)
-#     #     print(model_dir)
-#         try:
-#             X[i] = np.loadtxt(model_dir+'/trans')[:,1]# + x_o[:,2]*np.random.randn(1, x_o.shape[0])
-#         except:
-#             print(model_dir)
-
-    X = np.concatenate(Xes)
-    
-    if args.scaleR:
-        scale_R = R_scale(x_o[:,1], X)
-        
-        scaled_R = np.sqrt(scale_R)*np_theta[:,-2]
-        np_theta[:,-2] = scaled_R
-    
     np.save(args.output+'/X_round_'+str(r)+'.npy', X)
+    np.save(args.output+'/Y_round_'+str(r)+'.npy', np_theta)
             
     if args.dont_plot:
         plt.figure(figsize=(15,5))
