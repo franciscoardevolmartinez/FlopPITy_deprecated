@@ -42,6 +42,10 @@ def simulator(parameters, directory, r, input_file, obs_file, n):
         try:
             X[i] = np.loadtxt(model_dir+'/trans')[:,1]# + x_o[:,2]*np.random.randn(1, x_o.shape[0])
         except:
-            print(model_dir)
+            print('Trans: ', model_dir)
+            
+    print('Cleaning files')
+    logging.info('Cleaning files')    
+    os.system('rm -rf '+dirx)
     
     return X

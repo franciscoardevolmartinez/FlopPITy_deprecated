@@ -289,10 +289,10 @@ for r in range(len(posteriors), num_rounds):
             print('Time elapsed: ', time()-tic)
             logging.info(('Time elapsed: ', time()-tic))
             
-            X_con2 = np.concatenate((X, Xes2))
-            sm = np.sum(X_con2, axis=1)
+            X_con2 = np.concatenate(Xes2)
+            sm2 = np.sum(X_con2, axis=1)
         
-            X = X_con[sm!=0]
+            X = np.concatenate((X, X_con2[sm2!=0]))
         
     
     if args.scaleR:
@@ -400,6 +400,8 @@ for r in range(len(posteriors), num_rounds):
     if args.clean:
         for j in range(args.processes):
             os.system('rm -rf '+args.output + 'round_'+str(r)+str(j)+'_out/')
+            
+    plt.close('all')
 
 print('Drawing samples ')
 logging.info('Drawing samples ')
