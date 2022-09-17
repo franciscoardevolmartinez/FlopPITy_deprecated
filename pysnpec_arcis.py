@@ -232,11 +232,8 @@ for r in range(len(posteriors), num_rounds):
     if args.reuse_prior_samples and r==0:
         print('Reusing prior samples')
         logging.info('Reusing prior samples')
-        try:
-            X = np.load(args.output+'/X_round_'+str(r)+'.npy')[:samples_per_round[r]]
-            np_theta = np.load(args.output+'/Y_round_'+str(r)+'.npy')[:samples_per_round[r]]
-        except:
-            print("Not enough samples!")
+        X = np.load(args.samples_dir+'/X_round_'+str(r)+'.npy')[:samples_per_round[r]]
+        np_theta = np.load(args.samples_dir+'/Y_round_'+str(r)+'.npy')[:samples_per_round[r]]
     else:
         logging.info('Drawing '+str(samples_per_round[r])+' samples')
         print(samples_per_round[r])
