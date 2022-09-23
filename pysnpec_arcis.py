@@ -32,6 +32,7 @@ import matplotlib.pyplot as plt
 from corner import corner
 from multiprocessing import Process, Pool
 from simulator import simulator
+from spectres import spectres
 
 supertic = time()
 
@@ -40,20 +41,22 @@ supertic = time()
 def parse_args():
     parser = argparse.ArgumentParser(description=('Train SNPE_C'))
     parser.add_argument('-input', type=str, help='ARCiS input file for the retrieval')
-    parser.add_argument('-obs', type=str, default='obs1.txt', help='File with observation')
+    parser.add_argument('-obs_trans', type=str, default='None', help='File with transit observation')
+    parser.add_argument('-obs_phase', type=str, default='None', help='File with phase curve observation')
     parser.add_argument('-output', type=str, default='output/', help='Directory to save output')
     parser.add_argument('-prior', type=str, default='prior.dat', help='File with prior bounds (box uniform)')
     parser.add_argument('-model', type=str, default='nsf', help='Either nsf or maf.')
     parser.add_argument('-device', type=str, default='cpu', help='Device to use for training. Default: GPU.')
     parser.add_argument('-num_rounds', type=int, default=10, help='Number of rounds to train for. Default: 10.')
-    parser.add_argument('-samples_per_round', type=str, default='1000', help='Number of samples to draw for training each round. If a single value, that number of samples will be drawn for num_rounds rounds. If multiple values, at each round, the number of samples specified will be drawn. Default: 1000.')
+    parser.add_argument('-samples_per_round', type=str, default='5000', help='Number of samples to draw for training each round. If a single value, that number of samples will be drawn for num_rounds rounds. If multiple values, at each round, the number of samples specified will be drawn. Default: 1000.')
     parser.add_argument('-hidden', type=int, default=50)
     parser.add_argument('-do_pca', action='store_true')
-    parser.add_argument('-n_pca', type=int, default=50)
+    parser.add_argument('-n_pca_trans', type=int, default=50)
+    parser.add_argument('-n_pca_phase', type=int, default=50)
     parser.add_argument('-transforms', type=int, default=5)
     parser.add_argument('-bins', type=int, default=5)
     parser.add_argument('-blocks', type=int, default=2)
-    parser.add_argument('-embed_size', type=int, default=32)
+    parser.add_argument('-embed_size', type=int, default=64)
     parser.add_argument('-embedding', action='store_true')
     parser.add_argument('-ynorm', action='store_true')
     parser.add_argument('-xnorm', action='store_true')
@@ -75,51 +78,22 @@ def parse_args():
     parser.add_argument('-samples_dir', type=str)
     return parser.parse_args()
 
-### CREATE ARCIS SIMULATOR ###
-
+### Embedding network
 class SummaryNet(nn.Module): 
 
     def __init__(self, size_in, size_out): 
         super().__init__()
-        self.fc1 = nn.Linear(size_in, size_out)
-#        self.fc2 = nn.Linear(256, 128)
-#        self.fc3 = nn.Linear(128, 64)
+        self.fc1 = nn.Linear(size_in, 128)
+        # self.fc2 = nn.Linear(256, 128)
+        self.fc3 = nn.Linear(128, size_out)
 
     def forward(self, x):
-#        x = F.relu(self.fc1(x))
-#        x = F.relu(self.fc2(x))
-        x = self.fc1(x)
+        x = F.relu(self.fc1(x))
+        # x = F.relu(self.fc2(x))
+        x = self.fc3(x)
         return x
     
-work_dir = os.getcwd()+'/'
-
-args = parse_args()
-
-p = Path(args.output)
-p.mkdir(parents=True, exist_ok=True)
-
-logging.basicConfig(filename=args.output+'/log.log', filemode='a', format='%(asctime)s %(message)s', 
-                datefmt='%H:%M:%S', level=logging.DEBUG)
-
-logging.info('Initializing...')
-
-if args.embedding:
-        print('Embedding net')
-
-logging.info('Command line arguments: '+ str(args))
-print('Command line arguments: '+ str(args))
-
-device = args.device
-
-# xscaler = pickle.load(open('xscaler.p', 'rb'))
-# yscaler = pickle.load(open('yscaler.p', 'rb'))
-# noise   = np.loadtxt('noise.dat')
-
-### Normalize parameters
-
-def scaleR(obs, model):
-    return np.sum(obs)/np.sum(model, axis=1)
-
+### Parameter transformer
 class Normalizer():
     def __init__(self, prior_bounds):
         self.bounds = prior_bounds
@@ -138,12 +112,47 @@ class Normalizer():
             Yi[:,i] = (Y[:,i]+1)*(self.bounds[i][1] - self.bounds[i][0])/2 + self.bounds[i][0]
         return Yi
     
-def removeR(X):
-    means = np.mean(X, axis=0)
-    XmR = X - means
-    return np.concatenate((XmR, means), axis=1)
+def find_repeat(array):
+    repeat = np.empty(len(array), dtype=bool)
+    repeat[0]=True
+    for i in range(1,len(array)):
+        if array[i]==array[i-1]:
+            repeat[i]=False
+        else:
+            repeat[i]=True
+    return repeat
     
-    
+work_dir = os.getcwd()+'/'
+
+args = parse_args()
+
+p = Path(args.output)
+p.mkdir(parents=True, exist_ok=True)
+
+logging.basicConfig(filename=args.output+'/log.log', filemode='a', format='%(asctime)s %(message)s', 
+                datefmt='%H:%M:%S', level=logging.DEBUG)
+
+logging.info('Initializing...')
+
+logging.info('Command line arguments: '+ str(args))
+print('Command line arguments: '+ str(args))
+
+device = args.device
+
+### 1. Load observation/s
+print('Loading observations... ')
+logging.info('Loading observations...')
+if args.obs_trans!='None':
+    obs_trans=np.loadtxt(args.obs_trans)
+if args.obs_phase!='None':
+    phase = (args.obs_phase).split()
+    obs_phase=[]
+    for i in range(len(phase)):
+        obs_phase.append(np.loadtxt(phase[i]))
+
+embedding_net = SummaryNet(obs_trans.shape[0], args.embed_size)
+
+### 2. Load, create, and transform prior
 print('Loading prior from '+args.prior)
 logging.info('Loading prior from '+args.prior)
     
@@ -151,7 +160,6 @@ prior_bounds = np.loadtxt(args.prior)
 
 if args.ynorm:
     yscaler = Normalizer(prior_bounds)
-    # yscaler = StandardScaler().fit()
     pickle.dump(yscaler, open(args.output+'/yscaler.p', 'wb'))
 
     prior_min = torch.tensor(yscaler.transform(prior_bounds[:,0].reshape(1, -1)).reshape(-1))
@@ -161,12 +169,6 @@ else:
     prior_max = torch.tensor(prior_bounds[:,1].reshape(1,-1))
 
 prior = utils.BoxUniform(low=prior_min.to(device, non_blocking=True), high=prior_max.to(device, non_blocking=True), device=device)
-
-## Define simulator and load observation (for noise)
-
-x_o = np.loadtxt(args.obs)
-
-embedding_net = SummaryNet(x_o.shape[0]+1 if args.removeR else x_o.shape[0], args.embed_size)
 
 num_rounds = args.num_rounds
 
@@ -187,8 +189,6 @@ else:
         proposal = posteriors[-1].set_default_x(xscaler.transform(pca.transform(x_o[:,1].reshape(1,-1))))
     else:
         proposal = posteriors[-1].set_default_x(x_o[:,1])
-
-# simulator, prior = prepare_for_sbi(arcis_sim, prior)
 
 if args.model == 'nsf':
     if args.embedding:
@@ -229,83 +229,136 @@ for r in range(len(posteriors), num_rounds):
     print('\n **** Training round ', r)
     logging.info('Round '+str(r))
     
-    if args.reuse_prior_samples and r==0:
-        print('Reusing prior samples')
-        logging.info('Reusing prior samples')
-        X = np.load(args.samples_dir+'/X_round_'+str(r)+'.npy')[:samples_per_round[r]]
-        np_theta = np.load(args.samples_dir+'/Y_round_'+str(r)+'.npy')[:samples_per_round[r]]
-    else:
-        logging.info('Drawing '+str(samples_per_round[r])+' samples')
-        print(samples_per_round[r])
-        theta = proposal.sample((samples_per_round[r],))
-        # print('itheta', itheta[0:2])
-        np_theta = theta.cpu().detach().numpy().reshape([-1, len(prior_bounds)])
+    # if args.reuse_prior_samples and r==0:
+    #     print('Reusing prior samples')
+    #     logging.info('Reusing prior samples')
+    #     X = np.load(args.samples_dir+'/X_round_'+str(r)+'.npy')[:samples_per_round[r]]
+    #     if args.phasecurve:
+    #         phase = np.load(args.samples_dir+'/phase_round_'+str(r)+'.npy')[:samples_per_round[r]]#########
+    #     np_theta = np.load(args.samples_dir+'/Y_round_'+str(r)+'.npy')[:samples_per_round[r]]
+    # else:
+    logging.info('Drawing '+str(samples_per_round[r])+' samples')
+    print(samples_per_round[r])
+    theta = proposal.sample((samples_per_round[r],))
+    np_theta = theta.cpu().detach().numpy().reshape([-1, len(prior_bounds)])
     
-        samples_per_process = samples_per_round[r]//args.processes
-
-        parargs=[]
+    if args.dont_plot:
         if args.ynorm:
-            params=yscaler.inverse_transform(np_theta)
+            post_plot = yscaler.inverse_transform(np_theta)
         else:
-            params = np_theta
+            post_plot = np_theta
+        fig1 = corner(post_plot, smooth=0.5, range=prior_bounds)
+        plt.savefig(args.output+'corner_'+str(r)+'.pdf', bbox_inches='tight')
 
-        for i in range(args.processes-1):
-            parargs.append((params[i*samples_per_process:(i+1)*samples_per_process], args.output, r, args.input, args.obs, i))
-        parargs.append((params[(args.processes-1)*samples_per_process:], args.output, r, args.input, args.obs, args.processes-1))
+#     samples_per_process = samples_per_round[r]//args.processes
 
-        tic=time()
-        pool = Pool(processes = args.processes)
-        Xes = pool.starmap(simulator, parargs)
-        print('Time elapsed: ', time()-tic)
-        logging.info(('Time elapsed: ', time()-tic))
+#     parargs=[]
+    if args.ynorm:
+        params=yscaler.inverse_transform(np_theta)
+    else:
+        params = np_theta
 
-        X_con = np.concatenate(Xes)
+#     for i in range(args.processes-1):
+#         parargs.append((params[i*samples_per_process:(i+1)*samples_per_process], args.output, r, args.input, i))
+#     parargs.append((params[(args.processes-1)*samples_per_process:], args.output, r, args.input, args.processes-1))
+
+    tic=time()
+#     pool = Pool(processes = args.processes)
+#     if args.obs_phase!='None':
+#         trans_s, phase_s = pool.starmap(simulator, parargs)
+#         trans = np.concatenate(trans_s)
+#         phase = np.concatenate(phase_s)
+#     else:
+#         trans_s = pool.starmap(simulator, parargs)
+#         trans = np.concatenate(trans_s)
+    
+    if args.obs_phase!='None':
+        trans, phase = simulator(params, args.output, r, args.input, 0)
+    else:
+        trans = simulator(params, args.output, r, args.input, 0)
         
-        sm = np.sum(X_con, axis=1)
-        
-        X = X_con[sm!=0]
-        
-        while len(X)<samples_per_round[r]:
-            print('ARCiS crashed, computing remaining ' +str(samples_per_round[r]-len(X))+' models.')
-            logging.info('ARCiS crashed, computing remaining ' +str(samples_per_round[r]-len(X))+' models.')
-            samples_per_process = samples_per_round[r]-len(X)//args.processes
-
-            parargs=[]
-            if args.ynorm:
-                params=yscaler.inverse_transform(np_theta[sm==0])
-            else:
-                params = np_theta[sm==0]
-
-            for i in range(args.processes-1):
-                parargs.append((params[i*samples_per_process:(i+1)*samples_per_process], args.output, r, args.input, args.obs, i))
-            parargs.append((params[(args.processes-1)*samples_per_process:], args.output, r, args.input, args.obs, args.processes-1))
-
-            tic=time()
-            pool = Pool(processes = args.processes)
-            Xes2 = pool.starmap(simulator, parargs)
-            print('Time elapsed: ', time()-tic)
-            logging.info(('Time elapsed: ', time()-tic))
+    dirx = args.output + 'round_'+str(r)+str(0)+'_out/'
+    wvl_model = np.loadtxt(args.output+'round_'+str(r)+str(0)+'_out/model000001/trans')[:,0]
+    wvl_phase = np.loadtxt(args.output+'round_'+str(r)+str(0)+'_out/model000001/phase')[:,0]
+    if args.clean:
+        for j in range(args.processes):
+            os.system('rm -rf '+args.output + 'round_'+str(r)+str(j)+'_out/')
             
-            X_con2 = np.concatenate(Xes2)
-            sm2 = np.sum(X_con2, axis=1)
-        
-            X = np.concatenate((X, X_con2[sm2!=0]))
-        
+    print('Time elapsed: ', time()-tic)
+    logging.info(('Time elapsed: ', time()-tic))
+
+    sm = np.sum(trans, axis=1)
+
+    trans = trans[sm!=0]
+    if args.obs_phase!='None':
+        phase = phase[sm!=0]
     
-    if args.scaleR:
-        scale_R = R_scale(x_o[:,1], X)
+    np_theta = np_theta[:len(trans)]
+    print(np_theta.shape)
+    
+#     while len(trans)<samples_per_round[r]:
+#         remain = samples_per_round[r]-len(trans)
+#         print('ARCiS crashed, computing remaining ' +str(remain)+' models.')
+#         logging.info('ARCiS crashed, computing remaining ' +str(remain)+' models.')
         
-        scaled_R = np.sqrt(scale_R)*np_theta[:,-2]
-        np_theta[:,-2] = scaled_R
+#         # theta_ac = proposal.sample((remain,))
+#         # np_theta_ac = theta_ac.cpu().detach().numpy().reshape([-1, len(prior_bounds)])
+
+#         if args.ynorm:
+#             params = yscaler.inverse_transform(np_theta[len(trans):])
+#         else:
+#             params = np_theta[len(trans):]
+        
+#         tic=time()
+#         if args.obs_phase!='None':
+#             trans_ac, phase_ac = simulator(params, args.output, r, args.input, 0)
+#         else:
+#             trans_ac = simulator(params, args.output, r, args.input, 0)
+#         print('Time elapsed: ', time()-tic)
+#         logging.info(('Time elapsed: ', time()-tic))
+        
+#         sm_ac = np.sum(trans_ac, axis=1)
+
+#         trans = np.concatenate((trans, trans_ac[sm_ac!=0]))
+#         if args.obs_phase!='None':
+#             phase = np.concatenate((phase, phase_ac[sm_ac!=0]))
+            
+#         np_theta = np.concatenate((np_theta, np_theta_ac[:len(trans_ac)]))
+        
+#         print(np_theta.shape)
+            
+#         if args.clean:
+#             for j in range(args.processes):
+#                 os.system('rm -rf '+args.output + 'round_'+str(r)+str(j)+'_out/')
+        
+    trans_noise = obs_trans[:,2]
     
-    if args.dont_plot and args.ynorm:
-        fig1 = corner(yscaler.inverse_transform(np_theta), smooth=0.5, range=prior_bounds)
-        plt.savefig(args.output+'corner_'+str(r)+'.pdf', bbox_inches='tight')
-    elif args.dont_plot:
-        fig1 = corner(np_theta, smooth=0.5, range=prior_bounds)
-        plt.savefig(args.output+'corner_'+str(r)+'.pdf', bbox_inches='tight')
+    print('Rebinning transmission spectrum...')
+    wvl_obs = np.round(obs_trans[:,0],6)
+    sel_ti = np.in1d(wvl_model, wvl_obs)
+    repeat = find_repeat(wvl_model)
+    sel_t = sel_ti*repeat
+    trans_reb = trans[:,sel_t]
     
-    np.save(args.output+'/X_round_'+str(r)+'.npy', X)
+    if args.obs_phase!='None':
+        print('Rebinning emission spectra...')
+        nwvl = np.zeros(phase.shape[1])
+        for i in range(phase.shape[1]):
+            nwvl[i] = len(obs_phase[i][:,0])
+            ## Rebin spectra
+        phase_reb = np.zeros([phase.shape[0], int(sum(nwvl))])
+        phase_noise = np.zeros(int(sum(nwvl)))
+        obs_phase_flat = np.zeros(int(sum(nwvl)))
+        for i in range(phase.shape[1]):
+            new_wvl = obs_phase[i][:,0]
+            phase_reb[:,int(sum(nwvl[:i])):int(sum(nwvl[:i+1]))] = spectres(new_wvl, wvl_phase,
+                                                                          phase[:,i,:])
+            phase_noise[int(sum(nwvl[:i])):int(sum(nwvl[:i+1]))] = obs_phase[i][:,2]
+            obs_phase_flat[int(sum(nwvl[:i])):int(sum(nwvl[:i+1]))] = obs_phase[i][:,1]
+            
+    np.save(args.output+'/trans_round_'+str(r)+'.npy', trans)
+    if args.obs_phase!='None':
+        np.save(args.output+'/phase_round_'+str(r)+'.npy', phase)
     np.save(args.output+'/Y_round_'+str(r)+'.npy', np_theta)
             
     if args.dont_plot:
@@ -318,43 +371,58 @@ for r in range(len(posteriors), num_rounds):
         plt.ylabel('Transit depth')
         plt.legend()
         plt.savefig(args.output+'round_'+str(r)+'_trans.pdf', bbox_inches='tight')
-    
-    # theta, x = simulate_for_sbi(simulator, proposal, num_simulations=samples_per_round[r], show_progress_bar=False) 
-    
+        
     theta = torch.tensor(np.repeat(np_theta, args.naug, axis=0), dtype=torch.float32, device=device)
-    X_aug = np.repeat(X, args.naug, axis=0) + x_o[:,2]*np.random.randn(samples_per_round[r]*args.naug, x_o.shape[0])
+    trans_aug = np.repeat(trans_reb, args.naug, axis=0) + trans_noise*np.random.randn(samples_per_round[r]*args.naug,
+                                                                                  obs_trans.shape[0])
+    if args.obs_phase!='None':
+        phase_reb_aug = np.repeat(phase_reb, args.naug, axis=0) + phase_noise*np.random.randn(samples_per_round[r]*args.naug,
+                                                                                  phase_reb.shape[1])
     if r==0:
-        if args.xnorm and not args.do_pca:
-            xscaler = StandardScaler().fit(X)
+        ## Fit PCA and xscaler with samples from prior only
+        if args.do_pca:
+            pca_trans = PCA(n_components=args.n_pca_trans)
+            pca_trans.fit(trans_reb)
+            pickle.dump(pca_trans, open(args.output+'/pca_trans.p', 'wb'))
+            if args.obs_phase!='None':
+                pca_phase = PCA(n_components=args.n_pca_phase)
+                pca_phase.fit(phase_reb)
+                pickle.dump(pca_phase, open(args.output+'/pca_phase.p', 'wb'))
+            if args.xnorm:
+                if args.obs_phase!='None':
+                    xscaler = StandardScaler().fit(np.concatenate((pca_trans.transform(trans_reb), 
+                                                                   pca_phase.transform(phase_reb)), axis=1))
+                else:
+                    xscaler = StandardScaler().fit(pca_trans.transform(trans_reb))
+                pickle.dump(xscaler, open(args.output+'/xscaler.p', 'wb'))
+        elif args.xnorm:
+            if args.obs_phase!='None':
+                xscaler = StandardScaler().fit(np.concatenate((trans_reb, phase_reb), axis=1))
+            else:
+                xscaler = StandardScaler().fit(trans_reb)
             pickle.dump(xscaler, open(args.output+'/xscaler.p', 'wb'))
-        elif args.do_pca and not args.xnorm:
-            pca = PCA(n_components=args.n_pca)
-            pca.fit(X)
-            pickle.dump(pca, open(args.output+'/pca.p', 'wb'))
-        elif args.do_pca and args.xnorm:
-            #do pca first
-            pca = PCA(n_components=args.n_pca)
-            pca.fit(X)
-            pickle.dump(pca, open(args.output+'/pca.p', 'wb'))
-            #then do xnorm
-            xscaler = StandardScaler().fit(pca.transform(X))
-            pickle.dump(xscaler, open(args.output+'/xscaler.p', 'wb'))
-    ##adding comments
-    if args.xnorm and not args.do_pca:
-        x = torch.tensor(xscaler.transform(X_aug), dtype=torch.float32, device=device)
-    elif args.do_pca and not args.xnorm:
-        x = torch.tensor(pca.transform(X_aug), dtype=torch.float32, device=device)
-    elif args.do_pca and args.xnorm:
-        x = torch.tensor(xscaler.transform(pca.transform(X_aug)), dtype=torch.float32, device=device)
-    else:
-        x = torch.tensor(X_aug, dtype=torch.float32, device=device)
     
-    # ### This is just for debugging
-    # if args.dont_plot:
-    #     plt.figure(figsize=(7,5))
-    #     for i in range(100):
-    #         plt.plot(x_o[:,0], x.detach().numpy()[i], color='midnightblue', alpha=0.1)
-    #     plt.savefig(args.output+'x_'+str(r)+'.pdf', bbox_inches='tight')
+    if args.do_pca:
+        if args.obs_phase!='None':
+            x_i = np.concatenate((pca_trans.transform(trans_aug), pca_phase.transform(phase_reb_aug)), axis=1)
+        else:
+            x_i = pca_trans.transform(trans_aug)
+        if args.xnorm:
+            x_f = xscaler.transform(x_i)
+        else:
+            x_f = x_i
+    elif args.xnorm:
+        if args.obs_phase!='None':
+            x_f = xscaler.transform(np.concatenate((trans_aug, phase_reb_aug), axis=1))
+        else:
+            x_f = xscaler.transform(trans_aug)
+    else:
+        if args.obs_phase!='None':
+            x_f = np.concatenate((trans_aug, phase_reb_aug), axis=1)
+        else:
+            x_f = trans_aug
+            
+    x = torch.tensor(x_f, dtype=torch.float32, device=device)
     
     logging.info('Training...')
     tic = time()
@@ -386,17 +454,28 @@ for r in range(len(posteriors), num_rounds):
     logging.info('Saving posteriors ')
     torch.save(posteriors, args.output+'/posteriors.pt')
     
-    if args.xnorm and not args.do_pca:
-        proposal = posterior.set_default_x(xscaler.transform(x_o[:,1].reshape(1,-1)))
-    elif args.do_pca and not args.xnorm:
-        proposal = posterior.set_default_x(pca.transform(x_o[:,1].reshape(1,-1)))
-    elif args.xnorm and args.do_pca:
-        proposal = posterior.set_default_x(xscaler.transform(pca.transform(x_o[:,1].reshape(1,-1))))
+    if args.do_pca:
+        if args.obs_phase!='None':
+            default_x_pca = np.concatenate((pca_trans.transform(obs_trans[:,1].reshape(1,-1)), 
+                            pca_phase.transform(obs_phase_flat.reshape(1,-1))), axis=1)
+        else:
+            default_x_pca = pca_trans.transform(obs_trans[:,1].reshape(1,-1))
+        if args.xnorm:
+            default_x = xscaler.transform(default_x_pca)
+        else:
+            default_x = default_x_pca
+    elif args.xnorm:
+        if args.obs_phase!='None':
+            default_x = xscaler.transform(np.concatenate((obs_trans[:,1].reshape(1,-1), obs_phase_flat.reshape(1,-1)), axis=1))
+        else:
+            default_x = xscaler.transform(obs_trans[:,1].reshape(1,-1))
     else:
-        proposal = posterior.set_default_x(x_o[:,1])
-    if args.clean:
-        for j in range(args.processes):
-            os.system('rm -rf '+args.output + 'round_'+str(r)+str(j)+'_out/')
+        if args.obs_phase!='None':
+            default_x = np.concatenate((obs_trans[:,1].reshape(1,-1), obs_phase_flat.reshape(1,-1)), axis=1)
+        else:
+            default_x = obs_trans[:,1].reshape(1,-1)
+            
+    proposal = posterior.set_default_x(default_x)
             
     plt.close('all')
 
@@ -406,16 +485,16 @@ samples = []
 for j in range(num_rounds):
     print('Drawing samples from round ', j)
     logging.info('Drawing samples from round ' + str(j))
-    if args.xnorm and not args.do_pca:
-        obs = torch.tensor(xscaler.transform(x_o[:,1].reshape(1,-1)), device=device)
-    elif args.do_pca and not args.xnorm:
-        obs = torch.tensor(pca.transform(x_o[:,1].reshape(1,-1)), device=device)
-    elif args.do_pca and args.xnorm:
-        obs = torch.tensor(xscaler.transform(pca.transform(x_o[:,1].reshape(1,-1))), device=device)
-    else:
-        obs = torch.tensor(x_o[:,1].reshape(1,-1), device=device)
+    # if args.xnorm and not args.do_pca:
+    #     obs = torch.tensor(xscaler.transform(x_o[:,1].reshape(1,-1)), device=device)
+    # elif args.do_pca and not args.xnorm:
+    #     obs = torch.tensor(pca.transform(x_o[:,1].reshape(1,-1)), device=device)
+    # elif args.do_pca and args.xnorm:
+    #     obs = torch.tensor(xscaler.transform(pca.transform(x_o[:,1].reshape(1,-1))), device=device)
+    # else:
+    #     obs = torch.tensor(x_o[:,1].reshape(1,-1), device=device)
     posterior = posteriors[j]
-    tsamples = posterior.sample((2000,), x=obs, show_progress_bars=True)
+    tsamples = posterior.sample((2000,), x=default_x, show_progress_bars=True)
     if args.ynorm:
         samples.append(yscaler.inverse_transform(tsamples.cpu().detach().numpy()))
     else:
