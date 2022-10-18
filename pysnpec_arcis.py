@@ -185,8 +185,24 @@ else:
         proposal = posteriors[-1].set_default_x(pca.transform(x_o[:,1].reshape(1,-1)))
     elif args.do_pca and args.xnorm:
         xscaler = pickle.load(open(args.output+'/xscaler.p', 'rb'))
-        pca = pickle.load(open(args.output+'/pca.p', 'rb'))
-        proposal = posteriors[-1].set_default_x(xscaler.transform(pca.transform(x_o[:,1].reshape(1,-1))))
+        pca_trans = pickle.load(open(args.output+'/pca_trans.p', 'rb'))
+        if args.obs_phase!='None':
+            pca_phase = pickle.load(open(args.output+'/pca_phase.p', 'rb'))
+        
+            nwvl = np.zeros(len(phase))
+            for i in range(len(phase)):
+                nwvl[i] = len(obs_phase[i][:,0])
+            obs_phase_flat = np.zeros(int(sum(nwvl)))
+            for i in range(10):
+                new_wvl = obs_phase[i][:,0]
+                obs_phase_flat[int(sum(nwvl[:i])):int(sum(nwvl[:i+1]))] = obs_phase[i][:,1]
+            
+            default_x_pca = np.concatenate((pca_trans.transform(obs_trans[:,1].reshape(1,-1)), 
+                                pca_phase.transform(obs_phase_flat.reshape(1,-1))), axis=1)
+        else:
+            default_x_pca = pca_trans.transform(obs_trans[:,1].reshape(1,-1))
+        default_x = xscaler.transform(default_x_pca)
+        proposal = posteriors[-1].set_default_x(default_x)
     else:
         proposal = posteriors[-1].set_default_x(x_o[:,1])
 
@@ -293,43 +309,52 @@ for r in range(len(posteriors), num_rounds):
     if args.obs_phase!='None':
         phase = phase[sm!=0]
     
-    np_theta = np_theta[:len(trans)]
-    print(np_theta.shape)
+    print('Trans', trans.shape)
+    print('Phase', phase.shape)
     
-#     while len(trans)<samples_per_round[r]:
-#         remain = samples_per_round[r]-len(trans)
-#         print('ARCiS crashed, computing remaining ' +str(remain)+' models.')
-#         logging.info('ARCiS crashed, computing remaining ' +str(remain)+' models.')
+    # np_theta = np_theta[:len(trans)]
+    # print(np_theta.shape)
+    
+    while len(trans)<samples_per_round[r]:
+        remain = samples_per_round[r]-len(trans)
+        print('ARCiS crashed, computing remaining ' +str(remain)+' models.')
+        logging.info('ARCiS crashed, computing remaining ' +str(remain)+' models.')
         
-#         # theta_ac = proposal.sample((remain,))
-#         # np_theta_ac = theta_ac.cpu().detach().numpy().reshape([-1, len(prior_bounds)])
+        theta[len(trans):] = proposal.sample((remain,))
+        np_theta = theta.cpu().detach().numpy().reshape([-1, len(prior_bounds)])
 
-#         if args.ynorm:
-#             params = yscaler.inverse_transform(np_theta[len(trans):])
-#         else:
-#             params = np_theta[len(trans):]
+        if args.ynorm:
+            params = yscaler.inverse_transform(np_theta[len(trans):])
+        else:
+            params = np_theta[len(trans):]
+            
+        for j in range(args.processes):
+                os.system('rm -rf '+args.output + 'round_'+str(r)+str(j)+'_out/')
         
-#         tic=time()
-#         if args.obs_phase!='None':
-#             trans_ac, phase_ac = simulator(params, args.output, r, args.input, 0)
-#         else:
-#             trans_ac = simulator(params, args.output, r, args.input, 0)
-#         print('Time elapsed: ', time()-tic)
-#         logging.info(('Time elapsed: ', time()-tic))
+        tic=time()
+        if args.obs_phase!='None':
+            trans_ac, phase_ac = simulator(params, args.output, r, args.input, 0)
+        else:
+            trans_ac = simulator(params, args.output, r, args.input, 0)
+        print('Time elapsed: ', time()-tic)
+        logging.info(('Time elapsed: ', time()-tic))
         
-#         sm_ac = np.sum(trans_ac, axis=1)
+        print('Trans_ac', trans_ac.shape)
+        print('Phase_ac', phase_ac.shape)
+        
+        sm_ac = np.sum(trans_ac, axis=1)
 
-#         trans = np.concatenate((trans, trans_ac[sm_ac!=0]))
-#         if args.obs_phase!='None':
-#             phase = np.concatenate((phase, phase_ac[sm_ac!=0]))
+        trans = np.concatenate((trans, trans_ac[sm_ac!=0]))
+        if args.obs_phase!='None':
+            phase = np.concatenate((phase, phase_ac[sm_ac!=0]))
             
-#         np_theta = np.concatenate((np_theta, np_theta_ac[:len(trans_ac)]))
+        print('Trans', trans.shape)
+        print('Phase', phase.shape)
+            
+        # np_theta = np.concatenate((np_theta, np_theta_ac[:len(trans_ac)]))
         
-#         print(np_theta.shape)
-            
-#         if args.clean:
-#             for j in range(args.processes):
-#                 os.system('rm -rf '+args.output + 'round_'+str(r)+str(j)+'_out/')
+        # print(np_theta.shape)
+                        
         
     trans_noise = obs_trans[:,2]
     
@@ -390,8 +415,8 @@ for r in range(len(posteriors), num_rounds):
                 pickle.dump(pca_phase, open(args.output+'/pca_phase.p', 'wb'))
             if args.xnorm:
                 if args.obs_phase!='None':
-                    xscaler = StandardScaler().fit(np.concatenate((pca_trans.transform(trans_reb), 
-                                                                   pca_phase.transform(phase_reb)), axis=1))
+                    xscaler = StandardScaler().fit(np.concatenate((pca_trans.transform(trans_aug), 
+                                                                   pca_phase.transform(phase_reb_aug)), axis=1))
                 else:
                     xscaler = StandardScaler().fit(pca_trans.transform(trans_reb))
                 pickle.dump(xscaler, open(args.output+'/xscaler.p', 'wb'))
@@ -423,6 +448,11 @@ for r in range(len(posteriors), num_rounds):
             x_f = trans_aug
             
     x = torch.tensor(x_f, dtype=torch.float32, device=device)
+    
+    plt.figure(figsize=(15,5))
+    for i in range(len(x_f)):
+        plt.plot(x_f[i], 'b', alpha=0.5)
+    plt.savefig(args.output+'round_'+str(r)+'_trans.pdf', bbox_inches='tight')
     
     logging.info('Training...')
     tic = time()
