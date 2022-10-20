@@ -16,6 +16,7 @@ def simulator(parameters, directory, r, input_file, n):
     np.savetxt(fname, parameters)
 
     print('Running ARCiS')
+    print('Computing '+str(len(parameters))+' models for process '+str(n))
     logging.info('Running ARCiS')
     os.system('cd .. ; '+ARCiS + ' '+input_file + ' -o '+directory+'round_'+str(r)+str(n)+'_out -s parametergridfile='+fname)
 
@@ -57,6 +58,6 @@ def simulator(parameters, directory, r, input_file, n):
                 print('Phase: ', model_dir)
     
     if phaseR:
-        return trans, phase
+        return [trans, phase]
     else:
         return trans

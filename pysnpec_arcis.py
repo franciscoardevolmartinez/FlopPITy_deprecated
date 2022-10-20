@@ -254,7 +254,7 @@ for r in range(len(posteriors), num_rounds):
     #     np_theta = np.load(args.samples_dir+'/Y_round_'+str(r)+'.npy')[:samples_per_round[r]]
     # else:
     logging.info('Drawing '+str(samples_per_round[r])+' samples')
-    print(samples_per_round[r])
+    print('Samples per round: ', samples_per_round[r])
     theta = proposal.sample((samples_per_round[r],))
     np_theta = theta.cpu().detach().numpy().reshape([-1, len(prior_bounds)])
     
@@ -266,36 +266,47 @@ for r in range(len(posteriors), num_rounds):
         fig1 = corner(post_plot, smooth=0.5, range=prior_bounds)
         plt.savefig(args.output+'corner_'+str(r)+'.pdf', bbox_inches='tight')
 
-#     samples_per_process = samples_per_round[r]//args.processes
+    samples_per_process = samples_per_round[r]//args.processes
+    
+    print('Samples per process: ', samples_per_process)
 
-#     parargs=[]
+    parargs=[]
     if args.ynorm:
         params=yscaler.inverse_transform(np_theta)
     else:
         params = np_theta
 
-#     for i in range(args.processes-1):
-#         parargs.append((params[i*samples_per_process:(i+1)*samples_per_process], args.output, r, args.input, i))
-#     parargs.append((params[(args.processes-1)*samples_per_process:], args.output, r, args.input, args.processes-1))
-
-    tic=time()
-#     pool = Pool(processes = args.processes)
-#     if args.obs_phase!='None':
-#         trans_s, phase_s = pool.starmap(simulator, parargs)
-#         trans = np.concatenate(trans_s)
-#         phase = np.concatenate(phase_s)
-#     else:
-#         trans_s = pool.starmap(simulator, parargs)
-#         trans = np.concatenate(trans_s)
+    for i in range(args.processes-1):
+        parargs.append((params[i*samples_per_process:(i+1)*samples_per_process], args.output, r, args.input, i))
+    parargs.append((params[(args.processes-1)*samples_per_process:], args.output, r, args.input, args.processes-1))
     
+    tic=time()
+    pool = Pool(processes = args.processes)
     if args.obs_phase!='None':
-        trans, phase = simulator(params, args.output, r, args.input, 0)
+        trans_phase = pool.starmap(simulator, parargs)
+        wvl_trans = np.loadtxt(args.output+'round_'+str(r)+str(0)+'_out/model000001/trans')[:,0]
+        wvl_phase = np.loadtxt(args.output+'round_'+str(r)+str(0)+'_out/model000001/phase')[:,0]
+        trans = np.zeros([samples_per_round[r], len(wvl_trans)])
+        phase = np.zeros([samples_per_round[r], len(obs_phase), len(wvl_phase)])
+        print('Joining processes...')
+        for i in trange(args.processes-1):
+            trans[i*samples_per_process:(i+1)*samples_per_process] = trans_phase[i][0]
+            phase[i*samples_per_process:(i+1)*samples_per_process] = trans_phase[i][1]
+        trans[(args.processes-1)*samples_per_process:] = trans_phase[(args.processes-1)][0]
+        phase[(args.processes-1)*samples_per_process:] = trans_phase[(args.processes-1)][1]
     else:
-        trans = simulator(params, args.output, r, args.input, 0)
+        trans_s = pool.starmap(simulator, parargs)
+        trans = np.concatenate(trans_s)
+    
+    # if args.obs_phase!='None':
+    #     trans, phase = simulator(params, args.output, r, args.input, 0)
+    # else:
+    #     trans = simulator(params, args.output, r, args.input, 0)
         
     dirx = args.output + 'round_'+str(r)+str(0)+'_out/'
-    wvl_model = np.loadtxt(args.output+'round_'+str(r)+str(0)+'_out/model000001/trans')[:,0]
-    wvl_phase = np.loadtxt(args.output+'round_'+str(r)+str(0)+'_out/model000001/phase')[:,0]
+    wvl_trans = np.loadtxt(args.output+'round_'+str(r)+str(0)+'_out/model000001/trans')[:,0]
+    if args.obs_phase!='None':
+        wvl_phase = np.loadtxt(args.output+'round_'+str(r)+str(0)+'_out/model000001/phase')[:,0]
     if args.clean:
         for j in range(args.processes):
             os.system('rm -rf '+args.output + 'round_'+str(r)+str(j)+'_out/')
@@ -308,12 +319,6 @@ for r in range(len(posteriors), num_rounds):
     trans = trans[sm!=0]
     if args.obs_phase!='None':
         phase = phase[sm!=0]
-    
-    print('Trans', trans.shape)
-    print('Phase', phase.shape)
-    
-    # np_theta = np_theta[:len(trans)]
-    # print(np_theta.shape)
     
     while len(trans)<samples_per_round[r]:
         remain = samples_per_round[r]-len(trans)
@@ -360,8 +365,8 @@ for r in range(len(posteriors), num_rounds):
     
     print('Rebinning transmission spectrum...')
     wvl_obs = np.round(obs_trans[:,0],6)
-    sel_ti = np.in1d(wvl_model, wvl_obs)
-    repeat = find_repeat(wvl_model)
+    sel_ti = np.in1d(wvl_trans, wvl_obs)
+    repeat = find_repeat(wvl_trans)
     sel_t = sel_ti*repeat
     trans_reb = trans[:,sel_t]
     
