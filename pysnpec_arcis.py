@@ -179,7 +179,18 @@ else:
     posteriors = torch.load(args.output+'/posteriors.pt')
     if args.xnorm and not args.do_pca:
         xscaler = pickle.load(open(args.output+'/xscaler.p', 'rb'))
-        proposal = posteriors[-1].set_default_x(xscaler.transform(x_o[:,1].reshape(1,-1)))
+        if args.obs_phase!='None':
+            nwvl = np.zeros(len(phase))
+            for i in range(len(phase)):
+                nwvl[i] = len(obs_phase[i][:,0])
+            obs_phase_flat = np.zeros(int(sum(nwvl)))
+            for i in range(10):
+                new_wvl = obs_phase[i][:,0]
+                obs_phase_flat[int(sum(nwvl[:i])):int(sum(nwvl[:i+1]))] = obs_phase[i][:,1]
+            
+            default_x = xscaler.transform(np.concatenate((obs_trans[:,1].reshape(1,-1), 
+                                obs_phase_flat.reshape(1,-1)), axis=1))
+        proposal = posteriors[-1].set_default_x(default_x)
     elif args.do_pca and not args.xnorm:
         pca = pickle.load(open(args.output+'/pca.p', 'rb'))
         proposal = posteriors[-1].set_default_x(pca.transform(x_o[:,1].reshape(1,-1)))
@@ -239,6 +250,8 @@ except:
 print('Training multi-round inference')
 logging.info('Training multi-round inference')
 
+pattern=[False, False, True]
+retrain = (num_rounds//3)*pattern+pattern[:num_rounds-3*(num_rounds//3)]
 
 for r in range(len(posteriors), num_rounds):
     print('\n')
@@ -265,38 +278,55 @@ for r in range(len(posteriors), num_rounds):
             post_plot = np_theta
         fig1 = corner(post_plot, smooth=0.5, range=prior_bounds)
         plt.savefig(args.output+'corner_'+str(r)+'.pdf', bbox_inches='tight')
-
-    samples_per_process = samples_per_round[r]//args.processes
+        
     
-    print('Samples per process: ', samples_per_process)
-
-    parargs=[]
-    if args.ynorm:
-        params=yscaler.inverse_transform(np_theta)
-    else:
-        params = np_theta
-
-    for i in range(args.processes-1):
-        parargs.append((params[i*samples_per_process:(i+1)*samples_per_process], args.output, r, args.input, i))
-    parargs.append((params[(args.processes-1)*samples_per_process:], args.output, r, args.input, args.processes-1))
+    # COMPUTE MODELS
     
-    tic=time()
-    pool = Pool(processes = args.processes)
+    def compute(np_theta):
+        samples_per_process = len(np_theta)//args.processes
+
+        print('Samples per process: ', samples_per_process)
+
+        parargs=[]
+        if args.ynorm:
+            params=yscaler.inverse_transform(np_theta)
+        else:
+            params = np_theta
+
+        for i in range(args.processes-1):
+            parargs.append((params[i*samples_per_process:(i+1)*samples_per_process], args.output, r, args.input, i))
+        parargs.append((params[(args.processes-1)*samples_per_process:], args.output, r, args.input, args.processes-1))
+
+        tic=time()
+        pool = Pool(processes = args.processes)
+        if args.obs_phase!='None':
+            trans_phase = pool.starmap(simulator, parargs)
+            wvl_trans = np.loadtxt(args.output+'round_'+str(r)+str(0)+'_out/model000001/trans')[:,0]
+            wvl_phase = np.loadtxt(args.output+'round_'+str(r)+str(0)+'_out/model000001/phase')[:,0]
+            trans = np.zeros([len(np_theta), len(wvl_trans)])
+            phase = np.zeros([len(np_theta), len(obs_phase), len(wvl_phase)])
+            print('Joining processes...')
+            for i in trange(args.processes-1):
+                trans[i*samples_per_process:(i+1)*samples_per_process] = trans_phase[i][0]
+                phase[i*samples_per_process:(i+1)*samples_per_process] = trans_phase[i][1]
+            trans[(args.processes-1)*samples_per_process:] = trans_phase[(args.processes-1)][0]
+            phase[(args.processes-1)*samples_per_process:] = trans_phase[(args.processes-1)][1]
+            print('Time elapsed: ', time()-tic)
+            logging.info(('Time elapsed: ', time()-tic))
+            print('*Compute* trans shape: ', trans.shape)
+            return trans, phase
+        else:
+            trans_s = pool.starmap(simulator, parargs)
+            trans = np.concatenate(trans_s)
+            print('Time elapsed: ', time()-tic)
+            logging.info(('Time elapsed: ', time()-tic))
+            return trans
+    
     if args.obs_phase!='None':
-        trans_phase = pool.starmap(simulator, parargs)
-        wvl_trans = np.loadtxt(args.output+'round_'+str(r)+str(0)+'_out/model000001/trans')[:,0]
-        wvl_phase = np.loadtxt(args.output+'round_'+str(r)+str(0)+'_out/model000001/phase')[:,0]
-        trans = np.zeros([samples_per_round[r], len(wvl_trans)])
-        phase = np.zeros([samples_per_round[r], len(obs_phase), len(wvl_phase)])
-        print('Joining processes...')
-        for i in trange(args.processes-1):
-            trans[i*samples_per_process:(i+1)*samples_per_process] = trans_phase[i][0]
-            phase[i*samples_per_process:(i+1)*samples_per_process] = trans_phase[i][1]
-        trans[(args.processes-1)*samples_per_process:] = trans_phase[(args.processes-1)][0]
-        phase[(args.processes-1)*samples_per_process:] = trans_phase[(args.processes-1)][1]
+        trans,phase = compute(np_theta)
     else:
-        trans_s = pool.starmap(simulator, parargs)
-        trans = np.concatenate(trans_s)
+        trans = compute(np_theta)
+        
     
     # if args.obs_phase!='None':
     #     trans, phase = simulator(params, args.output, r, args.input, 0)
@@ -311,14 +341,13 @@ for r in range(len(posteriors), num_rounds):
         for j in range(args.processes):
             os.system('rm -rf '+args.output + 'round_'+str(r)+str(j)+'_out/')
             
-    print('Time elapsed: ', time()-tic)
-    logging.info(('Time elapsed: ', time()-tic))
-
     sm = np.sum(trans, axis=1)
 
     trans = trans[sm!=0]
     if args.obs_phase!='None':
         phase = phase[sm!=0]
+    
+    print('Trans shape: ', trans.shape)
     
     while len(trans)<samples_per_round[r]:
         remain = samples_per_round[r]-len(trans)
@@ -327,25 +356,30 @@ for r in range(len(posteriors), num_rounds):
         
         theta[len(trans):] = proposal.sample((remain,))
         np_theta = theta.cpu().detach().numpy().reshape([-1, len(prior_bounds)])
-
-        if args.ynorm:
-            params = yscaler.inverse_transform(np_theta[len(trans):])
-        else:
-            params = np_theta[len(trans):]
-            
-        for j in range(args.processes):
-                os.system('rm -rf '+args.output + 'round_'+str(r)+str(j)+'_out/')
         
-        tic=time()
         if args.obs_phase!='None':
-            trans_ac, phase_ac = simulator(params, args.output, r, args.input, 0)
+            trans_ac,phase_ac=compute(np_theta[len(trans):])
         else:
-            trans_ac = simulator(params, args.output, r, args.input, 0)
-        print('Time elapsed: ', time()-tic)
-        logging.info(('Time elapsed: ', time()-tic))
+            trans_ac=compute(np_theta[len(trans):])
+
+#         if args.ynorm:
+#             params = yscaler.inverse_transform(np_theta[len(trans):])
+#         else:
+#             params = np_theta[len(trans):]
+            
+#         for j in range(args.processes):
+#                 os.system('rm -rf '+args.output + 'round_'+str(r)+str(j)+'_out/')
         
-        print('Trans_ac', trans_ac.shape)
-        print('Phase_ac', phase_ac.shape)
+#         tic=time()
+#         if args.obs_phase!='None':
+#             trans_ac, phase_ac = simulator(params, args.output, r, args.input, 0)
+#         else:
+#             trans_ac = simulator(params, args.output, r, args.input, 0)
+#         print('Time elapsed: ', time()-tic)
+#         logging.info(('Time elapsed: ', time()-tic))
+        
+#         print('Trans_ac', trans_ac.shape)
+#         print('Phase_ac', phase_ac.shape)
         
         sm_ac = np.sum(trans_ac, axis=1)
 
@@ -372,7 +406,8 @@ for r in range(len(posteriors), num_rounds):
     
     if args.obs_phase!='None':
         print('Rebinning emission spectra...')
-        nwvl = np.zeros(phase.shape[1])
+        logging.info('Rebinning emission spectra...')
+        nwvl = np.zeros(phase.shape[1]) #count wvl bins in each phase 
         for i in range(phase.shape[1]):
             nwvl[i] = len(obs_phase[i][:,0])
             ## Rebin spectra
@@ -382,9 +417,9 @@ for r in range(len(posteriors), num_rounds):
         for i in range(phase.shape[1]):
             new_wvl = obs_phase[i][:,0]
             phase_reb[:,int(sum(nwvl[:i])):int(sum(nwvl[:i+1]))] = spectres(new_wvl, wvl_phase,
-                                                                          phase[:,i,:])
+                                                                          phase[:,i,:]) #rebin model to observation wvl and put in a flat array with all other phases
             phase_noise[int(sum(nwvl[:i])):int(sum(nwvl[:i+1]))] = obs_phase[i][:,2]
-            obs_phase_flat[int(sum(nwvl[:i])):int(sum(nwvl[:i+1]))] = obs_phase[i][:,1]
+            obs_phase_flat[int(sum(nwvl[:i])):int(sum(nwvl[:i+1]))] = obs_phase[i][:,1] #flatten the observations
             
     np.save(args.output+'/trans_round_'+str(r)+'.npy', trans)
     if args.obs_phase!='None':
@@ -408,6 +443,28 @@ for r in range(len(posteriors), num_rounds):
     if args.obs_phase!='None':
         phase_reb_aug = np.repeat(phase_reb, args.naug, axis=0) + phase_noise*np.random.randn(samples_per_round[r]*args.naug,
                                                                                   phase_reb.shape[1])
+    ### ZOOM ON HST
+    plt.figure(figsize=(25, 20))
+    plt.plot(new_wvl[0:15], phase_reb[0, 0:15], 'd-', c='limegreen', label='Rebinned')
+    plt.plot(wvl_phase[0:15], phase[0, 0, 0:15], 'o-', c='red', label='Original model')
+    for i in range(naug):
+        plt.plot(new_wvl[0:15], phase_reb_aug[i, 0:15], c='lightskyblue', label='Noisy')
+    plt.xlabel(r'Wavelength ($\mu$m)')
+    plt.ylabel('Relative flux')
+    plt.legend()
+    plt.savefig(args.output+'spectra_hst.pdf', bbox_inches='tight')
+    
+    ### INCLUDING SPITZER
+    plt.figure(figsize=(25, 20))
+    plt.plot(new_wvl[0:17], phase_reb[0, 0:17], 'd-', c='limegreen', label='Rebinned')
+    plt.plot(wvl_phase[0:17], phase[0, 0, 0:17], 'o-', c='red', label='Original model')
+    for i in range(naug):
+        plt.plot(new_wvl[0:17], phase_reb_aug[i, 0:17], c='lightskyblue', label='Noisy')
+    plt.xlabel(r'Wavelength ($\mu$m)')
+    plt.ylabel('Relative flux')
+    plt.legend()
+    plt.savefig(args.output+'spectra_spitzer.pdf', bbox_inches='tight')
+    
     if r==0:
         ## Fit PCA and xscaler with samples from prior only
         if args.do_pca:
@@ -464,7 +521,7 @@ for r in range(len(posteriors), num_rounds):
     if args.method=='snpe':
         density_estimator = inference.append_simulations(theta, x, proposal=proposal).train(
             discard_prior_samples=args.discard_prior_samples, use_combined_loss=args.combined, show_train_summary=True, 
-            stop_after_epochs=args.patience, num_atoms=args.atoms, retrain_from_scratch=args.retrain_from_scratch, 
+            stop_after_epochs=args.patience, num_atoms=args.atoms, retrain_from_scratch=False, 
             force_first_round_loss=True)
     elif args.method=='snle':
         density_estimator = inference.append_simulations(theta, x).train(
