@@ -260,129 +260,131 @@ for r in range(len(posteriors), num_rounds):
     print('\n **** Training round ', r)
     logging.info('Round '+str(r))
     
-    # if args.reuse_prior_samples and r==0:
-    #     print('Reusing prior samples')
-    #     logging.info('Reusing prior samples')
-    #     X = np.load(args.samples_dir+'/X_round_'+str(r)+'.npy')[:samples_per_round[r]]
-    #     if args.phasecurve:
-    #         phase = np.load(args.samples_dir+'/phase_round_'+str(r)+'.npy')[:samples_per_round[r]]#########
-    #     np_theta = np.load(args.samples_dir+'/Y_round_'+str(r)+'.npy')[:samples_per_round[r]]
-    # else:
-    logging.info('Drawing '+str(samples_per_round[r])+' samples')
-    print('Samples per round: ', samples_per_round[r])
-    theta = proposal.sample((samples_per_round[r],))
-    np_theta = theta.cpu().detach().numpy().reshape([-1, len(prior_bounds)])
-    
-    np.savetxt('np_theta_line_279.txt', np_theta)
-    
-    if args.dont_plot:
-        if args.ynorm:
-            post_plot = yscaler.inverse_transform(np_theta)
-        else:
-            post_plot = np_theta
-        fig1 = corner(post_plot, smooth=0.5, range=prior_bounds)
-        plt.savefig(args.output+'corner_'+str(r)+'.pdf', bbox_inches='tight')
-    
-    # COMPUTE MODELS
-    
-    def compute(np_theta):
-        samples_per_process = len(np_theta)//args.processes
-
-        print('Samples per process: ', samples_per_process)
-
-        parargs=[]
-        if args.ynorm:
-            params=yscaler.inverse_transform(np_theta)
-        else:
-            params = np_theta
-            
-        np.savetxt('params_line_304.txt', params)
-        
-        for i in range(args.processes-1):
-            parargs.append((params[i*samples_per_process:(i+1)*samples_per_process], args.output, r, args.input, i))
-        parargs.append((params[(args.processes-1)*samples_per_process:], args.output, r, args.input, args.processes-1))
-
-        tic=time()
-        pool = Pool(processes = args.processes)
-        if args.obs_phase!='None':
-            trans_phase = pool.starmap(simulator, parargs)
-            trans = np.zeros([len(np_theta), len(obs_trans)])
-            phase = np.zeros([len(np_theta), int(sum(nwvl))])
-            print('Joining processes...')
-            for i in trange(args.processes-1):
-                trans[i*samples_per_process:(i+1)*samples_per_process] = trans_phase[i][0]
-                phase[i*samples_per_process:(i+1)*samples_per_process] = trans_phase[i][1]
-            trans[(args.processes-1)*samples_per_process:] = trans_phase[(args.processes-1)][0]
-            phase[(args.processes-1)*samples_per_process:] = trans_phase[(args.processes-1)][1]
-            print('Time elapsed: ', time()-tic)
-            logging.info(('Time elapsed: ', time()-tic))
-            return trans, phase
-        else:
-            trans_s = pool.starmap(simulator, parargs)
-            trans = np.concatenate(trans_s)
-            print('Time elapsed: ', time()-tic)
-            logging.info(('Time elapsed: ', time()-tic))
-            return trans
-    
-    if args.obs_phase!='None':
-        trans,phase = compute(np_theta)
+    if args.reuse_prior_samples and r==0:
+        print('Reusing prior samples')
+        logging.info('Reusing prior samples')
+        trans = np.load(args.samples_dir+'/trans_round_'+str(0)+'.npy')[:samples_per_round[0]]
+        if args.phasecurve:
+            phase = np.load(args.samples_dir+'/phase_round_'+str(0)+'.npy')[:samples_per_round[0]]#########
+            np_theta = np.load(args.samples_dir+'/Y_round_'+str(0)+'.npy')[:samples_per_round[0]]
     else:
-        trans = compute(np_theta)
-        
-    np.savetxt('phase_line_339.txt', phase)
-    
-    if args.clean:
-        for j in range(args.processes):
-            os.system('rm -rf '+args.output + 'round_'+str(r)+str(j)+'_out/')
-            
-    sm = np.sum(trans, axis=1)
-
-    trans = trans[sm!=0]
-    if args.obs_phase!='None':
-        phase = phase[sm!=0]
-    
-    while len(trans)<samples_per_round[r]:
-        remain = samples_per_round[r]-len(trans)
-        print('ARCiS crashed, computing remaining ' +str(remain)+' models.')
-        logging.info('ARCiS crashed, computing remaining ' +str(remain)+' models.')
-        
-        theta[len(trans):] = proposal.sample((remain,))
+        ##### drawing samples and computing fwd models
+        logging.info('Drawing '+str(samples_per_round[r])+' samples')
+        print('Samples per round: ', samples_per_round[r])
+        theta = proposal.sample((samples_per_round[r],))
         np_theta = theta.cpu().detach().numpy().reshape([-1, len(prior_bounds)])
         
-        np.savetxt('np_theta_line_372.txt', np_theta)
+        np.savetxt('np_theta_line_279.txt', np_theta)
         
-        if args.obs_phase!='None':
-            trans_ac,phase_ac=compute(np_theta[len(trans):])
-        else:
-            trans_ac=compute(np_theta[len(trans):])
-            
-        np.savetxt('phase_ac_line_377.txt', phase_ac)
+        if args.dont_plot:
+            if args.ynorm:
+                post_plot = yscaler.inverse_transform(np_theta)
+            else:
+                post_plot = np_theta
+            fig1 = corner(post_plot, smooth=0.5, range=prior_bounds)
+            plt.savefig(args.output+'corner_'+str(r)+'.pdf', bbox_inches='tight')
         
-        sm_ac = np.sum(trans_ac, axis=1)
+        # COMPUTE MODELS
+        
+        def compute(np_theta):
+            samples_per_process = len(np_theta)//args.processes
 
-        trans = np.concatenate((trans, trans_ac[sm_ac!=0]))
-        if args.obs_phase!='None':
-            phase = np.concatenate((phase, phase_ac[sm_ac!=0]))
+            print('Samples per process: ', samples_per_process)
+
+            parargs=[]
+            if args.ynorm:
+                params=yscaler.inverse_transform(np_theta)
+            else:
+                params = np_theta
+                
+            np.savetxt('params_line_304.txt', params)
             
-        print('Trans', trans.shape)
-        print('Phase', phase.shape)
-            
-    np.save(args.output+'/trans_round_'+str(r)+'.npy', trans)
-    if args.obs_phase!='None':
-        np.save(args.output+'/phase_round_'+str(r)+'.npy', phase)
-    np.save(args.output+'/Y_round_'+str(r)+'.npy', np_theta)
-            
-    if args.dont_plot:
-        plt.figure(figsize=(15,5))
-        plt.errorbar(x = x_o[:,0], y=x_o[:,1], yerr=x_o[:,2], color='red', ls='', fmt='.', label='Observation')
-        plt.plot(x_o[:,0], np.median(X, axis=0), c='mediumblue', label='Round '+str(r)+' models')
-        plt.fill_between(x_o[:,0], np.percentile(X, 84, axis=0), np.percentile(X, 16, axis=0), color='mediumblue', alpha=0.4)
-        plt.fill_between(x_o[:,0], np.percentile(X, 97.8, axis=0), np.percentile(X, 2.2, axis=0), color='mediumblue', alpha=0.1)
-        plt.xlabel(r'Wavelength ($\mu$m)')
-        plt.ylabel('Transit depth')
-        plt.legend()
-        plt.savefig(args.output+'round_'+str(r)+'_trans.pdf', bbox_inches='tight')
+            for i in range(args.processes-1):
+                parargs.append((params[i*samples_per_process:(i+1)*samples_per_process], args.output, r, args.input, i))
+            parargs.append((params[(args.processes-1)*samples_per_process:], args.output, r, args.input, args.processes-1))
+
+            tic=time()
+            pool = Pool(processes = args.processes)
+            if args.obs_phase!='None':
+                trans_phase = pool.starmap(simulator, parargs)
+                trans = np.zeros([len(np_theta), len(obs_trans)])
+                phase = np.zeros([len(np_theta), int(sum(nwvl))])
+                print('Joining processes...')
+                for i in trange(args.processes-1):
+                    trans[i*samples_per_process:(i+1)*samples_per_process] = trans_phase[i][0]
+                    phase[i*samples_per_process:(i+1)*samples_per_process] = trans_phase[i][1]
+                trans[(args.processes-1)*samples_per_process:] = trans_phase[(args.processes-1)][0]
+                phase[(args.processes-1)*samples_per_process:] = trans_phase[(args.processes-1)][1]
+                print('Time elapsed: ', time()-tic)
+                logging.info(('Time elapsed: ', time()-tic))
+                return trans, phase
+            else:
+                trans_s = pool.starmap(simulator, parargs)
+                trans = np.concatenate(trans_s)
+                print('Time elapsed: ', time()-tic)
+                logging.info(('Time elapsed: ', time()-tic))
+                return trans
         
+        if args.obs_phase!='None':
+            trans,phase = compute(np_theta)
+        else:
+            trans = compute(np_theta)
+            
+        np.savetxt('phase_line_339.txt', phase)
+        
+        if args.clean:
+            for j in range(args.processes):
+                os.system('rm -rf '+args.output + 'round_'+str(r)+str(j)+'_out/')
+                
+        sm = np.sum(trans, axis=1)
+
+        trans = trans[sm!=0]
+        if args.obs_phase!='None':
+            phase = phase[sm!=0]
+        
+        while len(trans)<samples_per_round[r]:
+            remain = samples_per_round[r]-len(trans)
+            print('ARCiS crashed, computing remaining ' +str(remain)+' models.')
+            logging.info('ARCiS crashed, computing remaining ' +str(remain)+' models.')
+            
+            theta[len(trans):] = proposal.sample((remain,))
+            np_theta = theta.cpu().detach().numpy().reshape([-1, len(prior_bounds)])
+            
+            np.savetxt('np_theta_line_372.txt', np_theta)
+            
+            if args.obs_phase!='None':
+                trans_ac,phase_ac=compute(np_theta[len(trans):])
+            else:
+                trans_ac=compute(np_theta[len(trans):])
+                
+            np.savetxt('phase_ac_line_377.txt', phase_ac)
+            
+            sm_ac = np.sum(trans_ac, axis=1)
+
+            trans = np.concatenate((trans, trans_ac[sm_ac!=0]))
+            if args.obs_phase!='None':
+                phase = np.concatenate((phase, phase_ac[sm_ac!=0]))
+                
+            print('Trans', trans.shape)
+            print('Phase', phase.shape)
+                
+        np.save(args.output+'/trans_round_'+str(r)+'.npy', trans)
+        if args.obs_phase!='None':
+            np.save(args.output+'/phase_round_'+str(r)+'.npy', phase)
+        np.save(args.output+'/Y_round_'+str(r)+'.npy', np_theta)
+                
+        if args.dont_plot:
+            plt.figure(figsize=(15,5))
+            plt.errorbar(x = x_o[:,0], y=x_o[:,1], yerr=x_o[:,2], color='red', ls='', fmt='.', label='Observation')
+            plt.plot(x_o[:,0], np.median(X, axis=0), c='mediumblue', label='Round '+str(r)+' models')
+            plt.fill_between(x_o[:,0], np.percentile(X, 84, axis=0), np.percentile(X, 16, axis=0), color='mediumblue', alpha=0.4)
+            plt.fill_between(x_o[:,0], np.percentile(X, 97.8, axis=0), np.percentile(X, 2.2, axis=0), color='mediumblue', alpha=0.1)
+            plt.xlabel(r'Wavelength ($\mu$m)')
+            plt.ylabel('Transit depth')
+            plt.legend()
+            plt.savefig(args.output+'round_'+str(r)+'_trans.pdf', bbox_inches='tight')
+     #######
+     
     theta = torch.tensor(np.repeat(np_theta, args.naug, axis=0), dtype=torch.float32, device=device)
     trans_aug = np.repeat(trans, args.naug, axis=0) #+ trans_noise*np.random.randn(samples_per_round[r]*args.naug, obs_trans.shape[0])
     if args.obs_phase!='None':
