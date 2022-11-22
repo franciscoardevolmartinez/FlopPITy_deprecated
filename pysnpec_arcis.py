@@ -111,17 +111,19 @@ class Normalizer():
         for i in range(Y.shape[1]):
             Yi[:,i] = (Y[:,i]+1)*(self.bounds[i][1] - self.bounds[i][0])/2 + self.bounds[i][0]
         return Yi
-    
-def find_repeat(array):
-    repeat = np.empty(len(array), dtype=bool)
-    repeat[0]=True
-    for i in range(1,len(array)):
-        if array[i]==array[i-1]:
-            repeat[i]=False
-        else:
-            repeat[i]=True
-    return repeat
-    
+
+##### DELETE WITH NEW ARCiS UPDATE
+#def find_repeat(array):
+#    repeat = np.empty(len(array), dtype=bool)
+#    repeat[0]=True
+#    for i in range(1,len(array)):
+#        if array[i]==array[i-1]:
+#            repeat[i]=False
+#        else:
+#            repeat[i]=True
+#    return repeat
+######
+
 work_dir = os.getcwd()+'/'
 
 args = parse_args()
@@ -143,14 +145,23 @@ device = args.device
 print('Loading observations... ')
 logging.info('Loading observations...')
 if args.obs_trans!='None':
-    obs_trans=np.loadtxt(args.obs_trans)
+    obs_trans = np.loadtxt(args.obs_trans)[:,1]
+    noise_trans = np.loadtxt(args.obs_trans)[:,2]
 if args.obs_phase!='None':
-    phase = (args.obs_phase).split()
-    obs_phase=[]
-    for i in range(len(phase)):
-        obs_phase.append(np.loadtxt(phase[i]))
+    phase_str = (args.obs_phase).split()
+    nwvl = np.zeros(len(phase_str))
+    for i in range(len(phase_str)):
+        nwvl[i] = len(np.loadtxt(phase_str[i])[:,0])
+    l=[0]
+    obs_phase = np.zeros(int(sum(nwvl)))
+    for j in range(len(phase_str)):
+        phasej = np.loadtxt(phase_str[j])[:,1]
+        l.append(len(phasej))
+        obs_phase[sum(l[:j+1]):sum(l[:j+2])] = phasej   #### obs_phase 1D array of flattened phasecurves (len = sum of lens of each phase observation)
+        
+np.savetxt('obs_phase_line_155.txt', obs_phase)
 
-embedding_net = SummaryNet(obs_trans.shape[0], args.embed_size)
+#embedding_net = SummaryNet(obs_trans.shape[0], args.embed_size)
 
 ### 2. Load, create, and transform prior
 print('Loading prior from '+args.prior)
@@ -172,6 +183,8 @@ prior = utils.BoxUniform(low=prior_min.to(device, non_blocking=True), high=prior
 
 num_rounds = args.num_rounds
 
+############
+### Resuming
 if args.resume:
     posteriors = []                         
     proposal = prior
@@ -180,16 +193,16 @@ else:
     if args.xnorm and not args.do_pca:
         xscaler = pickle.load(open(args.output+'/xscaler.p', 'rb'))
         if args.obs_phase!='None':
-            nwvl = np.zeros(len(phase))
-            for i in range(len(phase)):
-                nwvl[i] = len(obs_phase[i][:,0])
-            obs_phase_flat = np.zeros(int(sum(nwvl)))
-            for i in range(10):
-                new_wvl = obs_phase[i][:,0]
-                obs_phase_flat[int(sum(nwvl[:i])):int(sum(nwvl[:i+1]))] = obs_phase[i][:,1]
+#            nwvl = np.zeros(len(phase))
+#            for i in range(len(phase)):
+#                nwvl[i] = len(obs_phase[i][:,0])
+#            obs_phase_flat = np.zeros(int(sum(nwvl)))
+#            for i in range(10):
+#                new_wvl = obs_phase[i][:,0]
+#                obs_phase_flat[int(sum(nwvl[:i])):int(sum(nwvl[:i+1]))] = obs_phase[i][:,1]
             
-            default_x = xscaler.transform(np.concatenate((obs_trans[:,1].reshape(1,-1), 
-                                obs_phase_flat.reshape(1,-1)), axis=1))
+            default_x = xscaler.transform(np.concatenate((obs_trans.reshape(1,-1),
+                                obs_phase.reshape(1,-1)), axis=1))
         proposal = posteriors[-1].set_default_x(default_x)
     elif args.do_pca and not args.xnorm:
         pca = pickle.load(open(args.output+'/pca.p', 'rb'))
@@ -200,22 +213,23 @@ else:
         if args.obs_phase!='None':
             pca_phase = pickle.load(open(args.output+'/pca_phase.p', 'rb'))
         
-            nwvl = np.zeros(len(phase))
-            for i in range(len(phase)):
-                nwvl[i] = len(obs_phase[i][:,0])
+#            nwvl = np.zeros(len(phase))
+#            for i in range(len(phase)):
+#                nwvl[i] = len(obs_phase[i][:,0])
             obs_phase_flat = np.zeros(int(sum(nwvl)))
             for i in range(10):
                 new_wvl = obs_phase[i][:,0]
                 obs_phase_flat[int(sum(nwvl[:i])):int(sum(nwvl[:i+1]))] = obs_phase[i][:,1]
             
-            default_x_pca = np.concatenate((pca_trans.transform(obs_trans[:,1].reshape(1,-1)), 
-                                pca_phase.transform(obs_phase_flat.reshape(1,-1))), axis=1)
+            default_x_pca = np.concatenate((pca_trans.transform(obs_trans.reshape(1,-1)),
+                                pca_phase.transform(obs_phase.reshape(1,-1))), axis=1)
         else:
-            default_x_pca = pca_trans.transform(obs_trans[:,1].reshape(1,-1))
+            default_x_pca = pca_trans.transform(obs_trans.reshape(1,-1))
         default_x = xscaler.transform(default_x_pca)
         proposal = posteriors[-1].set_default_x(default_x)
     else:
         proposal = posteriors[-1].set_default_x(x_o[:,1])
+#######
 
 if args.model == 'nsf':
     if args.embedding:
@@ -271,6 +285,8 @@ for r in range(len(posteriors), num_rounds):
     theta = proposal.sample((samples_per_round[r],))
     np_theta = theta.cpu().detach().numpy().reshape([-1, len(prior_bounds)])
     
+    np.savetxt('np_theta_line_279.txt', np_theta)
+    
     if args.dont_plot:
         if args.ynorm:
             post_plot = yscaler.inverse_transform(np_theta)
@@ -278,7 +294,6 @@ for r in range(len(posteriors), num_rounds):
             post_plot = np_theta
         fig1 = corner(post_plot, smooth=0.5, range=prior_bounds)
         plt.savefig(args.output+'corner_'+str(r)+'.pdf', bbox_inches='tight')
-        
     
     # COMPUTE MODELS
     
@@ -292,7 +307,9 @@ for r in range(len(posteriors), num_rounds):
             params=yscaler.inverse_transform(np_theta)
         else:
             params = np_theta
-
+            
+        np.savetxt('params_line_304.txt', params)
+        
         for i in range(args.processes-1):
             parargs.append((params[i*samples_per_process:(i+1)*samples_per_process], args.output, r, args.input, i))
         parargs.append((params[(args.processes-1)*samples_per_process:], args.output, r, args.input, args.processes-1))
@@ -301,10 +318,10 @@ for r in range(len(posteriors), num_rounds):
         pool = Pool(processes = args.processes)
         if args.obs_phase!='None':
             trans_phase = pool.starmap(simulator, parargs)
-            wvl_trans = np.loadtxt(args.output+'round_'+str(r)+str(0)+'_out/model000001/trans')[:,0]
-            wvl_phase = np.loadtxt(args.output+'round_'+str(r)+str(0)+'_out/model000001/phase')[:,0]
-            trans = np.zeros([len(np_theta), len(wvl_trans)])
-            phase = np.zeros([len(np_theta), len(obs_phase), len(wvl_phase)])
+#            wvl_trans = np.loadtxt(args.output+'round_'+str(r)+str(0)+'_out/model000001/trans')[:,0]
+#            wvl_phase = np.loadtxt(args.output+'round_'+str(r)+str(0)+'_out/model000001/phase')[:,0]
+            trans = np.zeros([len(np_theta), len(obs_trans)])
+            phase = np.zeros([len(np_theta), int(sum(nwvl))])
             print('Joining processes...')
             for i in trange(args.processes-1):
                 trans[i*samples_per_process:(i+1)*samples_per_process] = trans_phase[i][0]
@@ -313,7 +330,6 @@ for r in range(len(posteriors), num_rounds):
             phase[(args.processes-1)*samples_per_process:] = trans_phase[(args.processes-1)][1]
             print('Time elapsed: ', time()-tic)
             logging.info(('Time elapsed: ', time()-tic))
-            print('*Compute* trans shape: ', trans.shape)
             return trans, phase
         else:
             trans_s = pool.starmap(simulator, parargs)
@@ -327,16 +343,17 @@ for r in range(len(posteriors), num_rounds):
     else:
         trans = compute(np_theta)
         
+    np.savetxt('phase_line_339.txt', phase)
     
     # if args.obs_phase!='None':
     #     trans, phase = simulator(params, args.output, r, args.input, 0)
     # else:
     #     trans = simulator(params, args.output, r, args.input, 0)
         
-    dirx = args.output + 'round_'+str(r)+str(0)+'_out/'
-    wvl_trans = np.loadtxt(args.output+'round_'+str(r)+str(0)+'_out/model000001/trans')[:,0]
-    if args.obs_phase!='None':
-        wvl_phase = np.loadtxt(args.output+'round_'+str(r)+str(0)+'_out/model000001/phase')[:,0]
+#    dirx = args.output + 'round_'+str(r)+str(0)+'_out/'
+#    wvl_trans = np.loadtxt(args.output+'round_'+str(r)+str(0)+'_out/model000001/trans')[:,0]
+#    if args.obs_phase!='None':
+#        wvl_phase = np.loadtxt(args.output+'round_'+str(r)+str(0)+'_out/model000001/phase')[:,0]
     if args.clean:
         for j in range(args.processes):
             os.system('rm -rf '+args.output + 'round_'+str(r)+str(j)+'_out/')
@@ -347,8 +364,6 @@ for r in range(len(posteriors), num_rounds):
     if args.obs_phase!='None':
         phase = phase[sm!=0]
     
-    print('Trans shape: ', trans.shape)
-    
     while len(trans)<samples_per_round[r]:
         remain = samples_per_round[r]-len(trans)
         print('ARCiS crashed, computing remaining ' +str(remain)+' models.')
@@ -357,10 +372,14 @@ for r in range(len(posteriors), num_rounds):
         theta[len(trans):] = proposal.sample((remain,))
         np_theta = theta.cpu().detach().numpy().reshape([-1, len(prior_bounds)])
         
+        np.savetxt('np_theta_line_372.txt', np_theta)
+        
         if args.obs_phase!='None':
             trans_ac,phase_ac=compute(np_theta[len(trans):])
         else:
             trans_ac=compute(np_theta[len(trans):])
+            
+        np.savetxt('phase_ac_line_377.txt', phase_ac)
 
 #         if args.ynorm:
 #             params = yscaler.inverse_transform(np_theta[len(trans):])
@@ -395,31 +414,31 @@ for r in range(len(posteriors), num_rounds):
         # print(np_theta.shape)
                         
         
-    trans_noise = obs_trans[:,2]
+#    trans_noise = obs_trans[:,2]
     
-    print('Rebinning transmission spectrum...')
-    wvl_obs = np.round(obs_trans[:,0],6)
-    sel_ti = np.in1d(wvl_trans, wvl_obs)
-    repeat = find_repeat(wvl_trans)
-    sel_t = sel_ti*repeat
-    trans_reb = trans[:,sel_t]
+#    print('Rebinning transmission spectrum...')
+#    wvl_obs = np.round(obs_trans[:,0],6)
+#    sel_ti = np.in1d(wvl_trans, wvl_obs)
+#    repeat = find_repeat(wvl_trans)
+#    sel_t = sel_ti*repeat
+#    trans_reb = trans[:,sel_t]
     
-    if args.obs_phase!='None':
-        print('Rebinning emission spectra...')
-        logging.info('Rebinning emission spectra...')
-        nwvl = np.zeros(phase.shape[1]) #count wvl bins in each phase 
-        for i in range(phase.shape[1]):
-            nwvl[i] = len(obs_phase[i][:,0])
-            ## Rebin spectra
-        phase_reb = np.zeros([phase.shape[0], int(sum(nwvl))])
-        phase_noise = np.zeros(int(sum(nwvl)))
-        obs_phase_flat = np.zeros(int(sum(nwvl)))
-        for i in range(phase.shape[1]):
-            new_wvl = obs_phase[i][:,0]
-            phase_reb[:,int(sum(nwvl[:i])):int(sum(nwvl[:i+1]))] = spectres(new_wvl, wvl_phase,
-                                                                          phase[:,i,:]) #rebin model to observation wvl and put in a flat array with all other phases
-            phase_noise[int(sum(nwvl[:i])):int(sum(nwvl[:i+1]))] = obs_phase[i][:,2]
-            obs_phase_flat[int(sum(nwvl[:i])):int(sum(nwvl[:i+1]))] = obs_phase[i][:,1] #flatten the observations
+#    if args.obs_phase!='None':
+#        print('Rebinning emission spectra...')
+#        logging.info('Rebinning emission spectra...')
+##        nwvl = np.zeros(phase.shape[1]) #count wvl bins in each phase
+##        for i in range(phase.shape[1]):
+##            nwvl[i] = len(obs_phase[i][:,0])
+#            ## Rebin spectra
+#        phase_reb = np.zeros([phase.shape[0], int(sum(nwvl))])
+#        phase_noise = np.zeros(int(sum(nwvl)))
+#        obs_phase_flat = np.zeros(int(sum(nwvl)))
+#        for i in range(phase.shape[1]):
+#            new_wvl = obs_phase[i][:,0]
+#            phase_reb[:,int(sum(nwvl[:i])):int(sum(nwvl[:i+1]))] = spectres(new_wvl, wvl_phase,
+#                                                                          phase[:,i,:]) #rebin model to observation wvl and put in a flat array with all other phases
+#            phase_noise[int(sum(nwvl[:i])):int(sum(nwvl[:i+1]))] = obs_phase[i][:,2]
+#            obs_phase_flat[int(sum(nwvl[:i])):int(sum(nwvl[:i+1]))] = obs_phase[i][:,1] #flatten the observations
             
     np.save(args.output+'/trans_round_'+str(r)+'.npy', trans)
     if args.obs_phase!='None':
@@ -438,60 +457,61 @@ for r in range(len(posteriors), num_rounds):
         plt.savefig(args.output+'round_'+str(r)+'_trans.pdf', bbox_inches='tight')
         
     theta = torch.tensor(np.repeat(np_theta, args.naug, axis=0), dtype=torch.float32, device=device)
-    trans_aug = np.repeat(trans_reb, args.naug, axis=0) + trans_noise*np.random.randn(samples_per_round[r]*args.naug,
-                                                                                  obs_trans.shape[0])
+    trans_aug = np.repeat(trans, args.naug, axis=0) #+ trans_noise*np.random.randn(samples_per_round[r]*args.naug, obs_trans.shape[0])
     if args.obs_phase!='None':
-        phase_reb_aug = np.repeat(phase_reb, args.naug, axis=0) + phase_noise*np.random.randn(samples_per_round[r]*args.naug,
-                                                                                  phase_reb.shape[1])
-    ### ZOOM ON HST
-    plt.figure(figsize=(25, 20))
-    plt.plot(new_wvl[0:15], phase_reb[0, 0:15], 'd-', c='limegreen', label='Rebinned')
-    plt.plot(wvl_phase[0:15], phase[0, 0, 0:15], 'o-', c='red', label='Original model')
-    for i in range(naug):
-        plt.plot(new_wvl[0:15], phase_reb_aug[i, 0:15], c='lightskyblue', label='Noisy')
-    plt.xlabel(r'Wavelength ($\mu$m)')
-    plt.ylabel('Relative flux')
-    plt.legend()
-    plt.savefig(args.output+'spectra_hst.pdf', bbox_inches='tight')
+        phase_aug = np.repeat(phase, args.naug, axis=0) #+ phase_noise*np.random.randn(samples_per_round[r]*args.naug, phase.shape[1])
     
-    ### INCLUDING SPITZER
-    plt.figure(figsize=(25, 20))
-    plt.plot(new_wvl[0:17], phase_reb[0, 0:17], 'd-', c='limegreen', label='Rebinned')
-    plt.plot(wvl_phase[0:17], phase[0, 0, 0:17], 'o-', c='red', label='Original model')
-    for i in range(naug):
-        plt.plot(new_wvl[0:17], phase_reb_aug[i, 0:17], c='lightskyblue', label='Noisy')
-    plt.xlabel(r'Wavelength ($\mu$m)')
-    plt.ylabel('Relative flux')
-    plt.legend()
-    plt.savefig(args.output+'spectra_spitzer.pdf', bbox_inches='tight')
+    np.savetxt('phase_aug_line_465.txt', phase_aug)
+        
+#    ### ZOOM ON HST
+#    plt.figure(figsize=(25, 20))
+#    plt.plot(new_wvl[0:15], phase_reb[0, 0:15], 'd-', c='limegreen', label='Rebinned')
+#    plt.plot(wvl_phase[0:15], phase[0, 0, 0:15], 'o-', c='red', label='Original model')
+#    for i in range(naug):
+#        plt.plot(new_wvl[0:15], phase_reb_aug[i, 0:15], c='lightskyblue', label='Noisy')
+#    plt.xlabel(r'Wavelength ($\mu$m)')
+#    plt.ylabel('Relative flux')
+#    plt.legend()
+#    plt.savefig(args.output+'spectra_hst.pdf', bbox_inches='tight')
+#
+#    ### INCLUDING SPITZER
+#    plt.figure(figsize=(25, 20))
+#    plt.plot(new_wvl[0:17], phase_reb[0, 0:17], 'd-', c='limegreen', label='Rebinned')
+#    plt.plot(wvl_phase[0:17], phase[0, 0, 0:17], 'o-', c='red', label='Original model')
+#    for i in range(naug):
+#        plt.plot(new_wvl[0:17], phase_reb_aug[i, 0:17], c='lightskyblue', label='Noisy')
+#    plt.xlabel(r'Wavelength ($\mu$m)')
+#    plt.ylabel('Relative flux')
+#    plt.legend()
+#    plt.savefig(args.output+'spectra_spitzer.pdf', bbox_inches='tight')
     
     if r==0:
         ## Fit PCA and xscaler with samples from prior only
         if args.do_pca:
             pca_trans = PCA(n_components=args.n_pca_trans)
-            pca_trans.fit(trans_reb)
+            pca_trans.fit(trans)
             pickle.dump(pca_trans, open(args.output+'/pca_trans.p', 'wb'))
             if args.obs_phase!='None':
                 pca_phase = PCA(n_components=args.n_pca_phase)
-                pca_phase.fit(phase_reb)
+                pca_phase.fit(phase)
                 pickle.dump(pca_phase, open(args.output+'/pca_phase.p', 'wb'))
             if args.xnorm:
                 if args.obs_phase!='None':
                     xscaler = StandardScaler().fit(np.concatenate((pca_trans.transform(trans_aug), 
-                                                                   pca_phase.transform(phase_reb_aug)), axis=1))
+                                                                   pca_phase.transform(phase_aug)), axis=1))
                 else:
-                    xscaler = StandardScaler().fit(pca_trans.transform(trans_reb))
+                    xscaler = StandardScaler().fit(pca_trans.transform(trans))
                 pickle.dump(xscaler, open(args.output+'/xscaler.p', 'wb'))
         elif args.xnorm:
             if args.obs_phase!='None':
-                xscaler = StandardScaler().fit(np.concatenate((trans_reb, phase_reb), axis=1))
+                xscaler = StandardScaler().fit(np.concatenate((trans, phase), axis=1))
             else:
-                xscaler = StandardScaler().fit(trans_reb)
+                xscaler = StandardScaler().fit(trans)
             pickle.dump(xscaler, open(args.output+'/xscaler.p', 'wb'))
     
     if args.do_pca:
         if args.obs_phase!='None':
-            x_i = np.concatenate((pca_trans.transform(trans_aug), pca_phase.transform(phase_reb_aug)), axis=1)
+            x_i = np.concatenate((pca_trans.transform(trans_aug), pca_phase.transform(phase_aug)), axis=1)
         else:
             x_i = pca_trans.transform(trans_aug)
         if args.xnorm:
@@ -500,21 +520,23 @@ for r in range(len(posteriors), num_rounds):
             x_f = x_i
     elif args.xnorm:
         if args.obs_phase!='None':
-            x_f = xscaler.transform(np.concatenate((trans_aug, phase_reb_aug), axis=1))
+            x_f = xscaler.transform(np.concatenate((trans_aug, phase_aug), axis=1))
         else:
             x_f = xscaler.transform(trans_aug)
     else:
         if args.obs_phase!='None':
-            x_f = np.concatenate((trans_aug, phase_reb_aug), axis=1)
+            x_f = np.concatenate((trans_aug, phase_aug), axis=1)
         else:
             x_f = trans_aug
             
     x = torch.tensor(x_f, dtype=torch.float32, device=device)
     
-    plt.figure(figsize=(15,5))
-    for i in range(len(x_f)):
-        plt.plot(x_f[i], 'b', alpha=0.5)
-    plt.savefig(args.output+'round_'+str(r)+'_trans.pdf', bbox_inches='tight')
+    np.savetxt('x_f_line_535.txt', x)
+    
+#    plt.figure(figsize=(15,5))
+#    for i in range(len(x_f)):
+#        plt.plot(x_f[i], 'b', alpha=0.5)
+#    plt.savefig(args.output+'round_'+str(r)+'_trans.pdf', bbox_inches='tight')
     
     logging.info('Training...')
     tic = time()
@@ -548,24 +570,26 @@ for r in range(len(posteriors), num_rounds):
     
     if args.do_pca:
         if args.obs_phase!='None':
-            default_x_pca = np.concatenate((pca_trans.transform(obs_trans[:,1].reshape(1,-1)), 
-                            pca_phase.transform(obs_phase_flat.reshape(1,-1))), axis=1)
+            default_x_pca = np.concatenate((pca_trans.transform(obs_trans.reshape(1,-1)),
+                            pca_phase.transform(obs_phase.reshape(1,-1))), axis=1)
         else:
-            default_x_pca = pca_trans.transform(obs_trans[:,1].reshape(1,-1))
+            default_x_pca = pca_trans.transform(obs_trans.reshape(1,-1))
         if args.xnorm:
             default_x = xscaler.transform(default_x_pca)
         else:
             default_x = default_x_pca
     elif args.xnorm:
         if args.obs_phase!='None':
-            default_x = xscaler.transform(np.concatenate((obs_trans[:,1].reshape(1,-1), obs_phase_flat.reshape(1,-1)), axis=1))
+            default_x = xscaler.transform(np.concatenate((obs_trans.reshape(1,-1), obs_phase.reshape(1,-1)), axis=1))
         else:
-            default_x = xscaler.transform(obs_trans[:,1].reshape(1,-1))
+            default_x = xscaler.transform(obs_trans.reshape(1,-1))
     else:
         if args.obs_phase!='None':
-            default_x = np.concatenate((obs_trans[:,1].reshape(1,-1), obs_phase_flat.reshape(1,-1)), axis=1)
+            default_x = np.concatenate((obs_trans.reshape(1,-1), obs_phase.reshape(1,-1)), axis=1)
         else:
-            default_x = obs_trans[:,1].reshape(1,-1)
+            default_x = obs_trans.reshape(1,-1)
+            
+    np.savetxt('default_x_line_595.txt', default_x)
             
     proposal = posterior.set_default_x(default_x)
             

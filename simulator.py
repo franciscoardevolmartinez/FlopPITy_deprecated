@@ -23,14 +23,21 @@ def simulator(parameters, directory, r, input_file, n):
     dirx = directory + 'round_'+str(r)+str(n)+'_out/'
     phaseR = os.path.isfile(dirx+'model000001/phasecurve')
     
-    sizet = np.loadtxt(dirx+'model000001/trans').shape[0]
+    sizet = np.loadtxt(dirx+'model000001/obs011').shape[0]
     trans = np.zeros([parameters.shape[0], sizet])
     
     if phaseR:
-        sizep = np.loadtxt(dirx+'model000001/phase').shape
+        sizep = 0
+        for j in range(10):
+            if j+1<10:
+                obsn = 'obs00'+str(j+1)
+            elif j+1<100:
+                obsn = 'obs0'+str(j+1)
+            phasej = np.loadtxt(dirx+'model000001/'+obsn)[:,1]
+            sizep += len(phasej)
         
         ###############################################################
-        phase = np.zeros([parameters.shape[0], sizep[1]-3, sizep[0]])##
+        phase = np.zeros([parameters.shape[0], sizep])##
         ###############################################################
         
     print('Reading ARCiS output')
@@ -45,15 +52,21 @@ def simulator(parameters, directory, r, input_file, n):
             model_dir = dirx + 'model000'+str(i+1)
         elif i+1<1e4:
             model_dir = dirx + 'model00'+str(i+1)
-    #     print(model_dir)
         try:
-            trans[i] = np.loadtxt(model_dir+'/trans')[:,1]# + x_o[:,2]*np.random.randn(1, x_o.shape[0])
+            trans[i] = np.loadtxt(model_dir+'/obs011')[:,1]
         except:
             print('Trans: ', model_dir)
         if phaseR:
             try:
-                phases = np.loadtxt(model_dir+'/phase')
-                phase[i] = (phases[:,1:-2]/phases[:,-2:-1]).T #flatten(order='F')
+                l=[0]
+                for j in range(10):
+                    if j+1<10:
+                        obsn = '/obs00'+str(j+1)
+                    elif j+1<100:
+                        obsn = '/obs0'+str(j+1)
+                    phasej = np.loadtxt(model_dir+obsn)[:,1]
+                    l.append(len(phasej))
+                    phase[i][sum(l[:j+1]):sum(l[:j+2])] = phasej
             except:
                 print('Phase: ', model_dir)
     
