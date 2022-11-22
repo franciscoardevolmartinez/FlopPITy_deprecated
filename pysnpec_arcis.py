@@ -112,18 +112,6 @@ class Normalizer():
             Yi[:,i] = (Y[:,i]+1)*(self.bounds[i][1] - self.bounds[i][0])/2 + self.bounds[i][0]
         return Yi
 
-##### DELETE WITH NEW ARCiS UPDATE
-#def find_repeat(array):
-#    repeat = np.empty(len(array), dtype=bool)
-#    repeat[0]=True
-#    for i in range(1,len(array)):
-#        if array[i]==array[i-1]:
-#            repeat[i]=False
-#        else:
-#            repeat[i]=True
-#    return repeat
-######
-
 work_dir = os.getcwd()+'/'
 
 args = parse_args()
@@ -318,8 +306,6 @@ for r in range(len(posteriors), num_rounds):
         pool = Pool(processes = args.processes)
         if args.obs_phase!='None':
             trans_phase = pool.starmap(simulator, parargs)
-#            wvl_trans = np.loadtxt(args.output+'round_'+str(r)+str(0)+'_out/model000001/trans')[:,0]
-#            wvl_phase = np.loadtxt(args.output+'round_'+str(r)+str(0)+'_out/model000001/phase')[:,0]
             trans = np.zeros([len(np_theta), len(obs_trans)])
             phase = np.zeros([len(np_theta), int(sum(nwvl))])
             print('Joining processes...')
@@ -345,15 +331,6 @@ for r in range(len(posteriors), num_rounds):
         
     np.savetxt('phase_line_339.txt', phase)
     
-    # if args.obs_phase!='None':
-    #     trans, phase = simulator(params, args.output, r, args.input, 0)
-    # else:
-    #     trans = simulator(params, args.output, r, args.input, 0)
-        
-#    dirx = args.output + 'round_'+str(r)+str(0)+'_out/'
-#    wvl_trans = np.loadtxt(args.output+'round_'+str(r)+str(0)+'_out/model000001/trans')[:,0]
-#    if args.obs_phase!='None':
-#        wvl_phase = np.loadtxt(args.output+'round_'+str(r)+str(0)+'_out/model000001/phase')[:,0]
     if args.clean:
         for j in range(args.processes):
             os.system('rm -rf '+args.output + 'round_'+str(r)+str(j)+'_out/')
@@ -380,25 +357,6 @@ for r in range(len(posteriors), num_rounds):
             trans_ac=compute(np_theta[len(trans):])
             
         np.savetxt('phase_ac_line_377.txt', phase_ac)
-
-#         if args.ynorm:
-#             params = yscaler.inverse_transform(np_theta[len(trans):])
-#         else:
-#             params = np_theta[len(trans):]
-            
-#         for j in range(args.processes):
-#                 os.system('rm -rf '+args.output + 'round_'+str(r)+str(j)+'_out/')
-        
-#         tic=time()
-#         if args.obs_phase!='None':
-#             trans_ac, phase_ac = simulator(params, args.output, r, args.input, 0)
-#         else:
-#             trans_ac = simulator(params, args.output, r, args.input, 0)
-#         print('Time elapsed: ', time()-tic)
-#         logging.info(('Time elapsed: ', time()-tic))
-        
-#         print('Trans_ac', trans_ac.shape)
-#         print('Phase_ac', phase_ac.shape)
         
         sm_ac = np.sum(trans_ac, axis=1)
 
@@ -408,37 +366,6 @@ for r in range(len(posteriors), num_rounds):
             
         print('Trans', trans.shape)
         print('Phase', phase.shape)
-            
-        # np_theta = np.concatenate((np_theta, np_theta_ac[:len(trans_ac)]))
-        
-        # print(np_theta.shape)
-                        
-        
-#    trans_noise = obs_trans[:,2]
-    
-#    print('Rebinning transmission spectrum...')
-#    wvl_obs = np.round(obs_trans[:,0],6)
-#    sel_ti = np.in1d(wvl_trans, wvl_obs)
-#    repeat = find_repeat(wvl_trans)
-#    sel_t = sel_ti*repeat
-#    trans_reb = trans[:,sel_t]
-    
-#    if args.obs_phase!='None':
-#        print('Rebinning emission spectra...')
-#        logging.info('Rebinning emission spectra...')
-##        nwvl = np.zeros(phase.shape[1]) #count wvl bins in each phase
-##        for i in range(phase.shape[1]):
-##            nwvl[i] = len(obs_phase[i][:,0])
-#            ## Rebin spectra
-#        phase_reb = np.zeros([phase.shape[0], int(sum(nwvl))])
-#        phase_noise = np.zeros(int(sum(nwvl)))
-#        obs_phase_flat = np.zeros(int(sum(nwvl)))
-#        for i in range(phase.shape[1]):
-#            new_wvl = obs_phase[i][:,0]
-#            phase_reb[:,int(sum(nwvl[:i])):int(sum(nwvl[:i+1]))] = spectres(new_wvl, wvl_phase,
-#                                                                          phase[:,i,:]) #rebin model to observation wvl and put in a flat array with all other phases
-#            phase_noise[int(sum(nwvl[:i])):int(sum(nwvl[:i+1]))] = obs_phase[i][:,2]
-#            obs_phase_flat[int(sum(nwvl[:i])):int(sum(nwvl[:i+1]))] = obs_phase[i][:,1] #flatten the observations
             
     np.save(args.output+'/trans_round_'+str(r)+'.npy', trans)
     if args.obs_phase!='None':
@@ -462,28 +389,6 @@ for r in range(len(posteriors), num_rounds):
         phase_aug = np.repeat(phase, args.naug, axis=0) #+ phase_noise*np.random.randn(samples_per_round[r]*args.naug, phase.shape[1])
     
     np.savetxt('phase_aug_line_465.txt', phase_aug)
-        
-#    ### ZOOM ON HST
-#    plt.figure(figsize=(25, 20))
-#    plt.plot(new_wvl[0:15], phase_reb[0, 0:15], 'd-', c='limegreen', label='Rebinned')
-#    plt.plot(wvl_phase[0:15], phase[0, 0, 0:15], 'o-', c='red', label='Original model')
-#    for i in range(naug):
-#        plt.plot(new_wvl[0:15], phase_reb_aug[i, 0:15], c='lightskyblue', label='Noisy')
-#    plt.xlabel(r'Wavelength ($\mu$m)')
-#    plt.ylabel('Relative flux')
-#    plt.legend()
-#    plt.savefig(args.output+'spectra_hst.pdf', bbox_inches='tight')
-#
-#    ### INCLUDING SPITZER
-#    plt.figure(figsize=(25, 20))
-#    plt.plot(new_wvl[0:17], phase_reb[0, 0:17], 'd-', c='limegreen', label='Rebinned')
-#    plt.plot(wvl_phase[0:17], phase[0, 0, 0:17], 'o-', c='red', label='Original model')
-#    for i in range(naug):
-#        plt.plot(new_wvl[0:17], phase_reb_aug[i, 0:17], c='lightskyblue', label='Noisy')
-#    plt.xlabel(r'Wavelength ($\mu$m)')
-#    plt.ylabel('Relative flux')
-#    plt.legend()
-#    plt.savefig(args.output+'spectra_spitzer.pdf', bbox_inches='tight')
     
     if r==0:
         ## Fit PCA and xscaler with samples from prior only
@@ -532,11 +437,6 @@ for r in range(len(posteriors), num_rounds):
     x = torch.tensor(x_f, dtype=torch.float32, device=device)
     
     np.savetxt('x_f_line_535.txt', x)
-    
-#    plt.figure(figsize=(15,5))
-#    for i in range(len(x_f)):
-#        plt.plot(x_f[i], 'b', alpha=0.5)
-#    plt.savefig(args.output+'round_'+str(r)+'_trans.pdf', bbox_inches='tight')
     
     logging.info('Training...')
     tic = time()
@@ -601,14 +501,6 @@ samples = []
 for j in range(num_rounds):
     print('Drawing samples from round ', j)
     logging.info('Drawing samples from round ' + str(j))
-    # if args.xnorm and not args.do_pca:
-    #     obs = torch.tensor(xscaler.transform(x_o[:,1].reshape(1,-1)), device=device)
-    # elif args.do_pca and not args.xnorm:
-    #     obs = torch.tensor(pca.transform(x_o[:,1].reshape(1,-1)), device=device)
-    # elif args.do_pca and args.xnorm:
-    #     obs = torch.tensor(xscaler.transform(pca.transform(x_o[:,1].reshape(1,-1))), device=device)
-    # else:
-    #     obs = torch.tensor(x_o[:,1].reshape(1,-1), device=device)
     posterior = posteriors[j]
     tsamples = posterior.sample((2000,), x=default_x, show_progress_bars=True)
     if args.ynorm:
@@ -625,15 +517,6 @@ np.savetxt(args.output+'/post_equal_weights.txt', samples[-1])
 if args.dont_plot:
     fig1 = corner(samples[-1], smooth=0.5, range=prior_bounds)
     plt.savefig(args.output+'corner_'+str(num_rounds)+'.pdf', bbox_inches='tight')
-
-# if args.dont_plot and args.ynorm:
-#     print('option 1')
-#     fig1 = corner(yscaler.inverse_transform(samples[-1]), smooth=0.5, range=prior_bounds)
-#     plt.savefig(args.output+'corner_'+str(r+1)+'.pdf', bbox_inches='tight')
-# elif args.dont_plot and not args.ynorm:
-#     print('option 2')
-#     fig1 = corner(samples[-1], smooth=0.5, range=prior_bounds)
-#     plt.savefig(args.output+'corner_'+str(r+1)+'.pdf', bbox_inches='tight')
 
 print('Time elapsed: ', time()-supertic)
 logging.info('Time elapsed: '+str(time()-supertic))
