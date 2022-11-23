@@ -147,7 +147,8 @@ if args.obs_phase!='None':
         l.append(len(phasej))
         obs_phase[sum(l[:j+1]):sum(l[:j+2])] = phasej   #### obs_phase 1D array of flattened phasecurves (len = sum of lens of each phase observation)
         
-np.savetxt('obs_phase_line_155.txt', obs_phase)
+np.savetxt(args.output+'obs_phase_line_155.txt', obs_phase)
+np.savetxt(args.output+'obs_trans_line_155.txt', obs_trans)
 
 #embedding_net = SummaryNet(obs_trans.shape[0], args.embed_size)
 
@@ -274,7 +275,7 @@ for r in range(len(posteriors), num_rounds):
         theta = proposal.sample((samples_per_round[r],))
         np_theta = theta.cpu().detach().numpy().reshape([-1, len(prior_bounds)])
         
-        np.savetxt('np_theta_line_279.txt', np_theta)
+        np.savetxt(args.output+'np_theta_line_279.txt', np_theta)
         
         if args.dont_plot:
             if args.ynorm:
@@ -297,7 +298,7 @@ for r in range(len(posteriors), num_rounds):
             else:
                 params = np_theta
                 
-            np.savetxt('params_line_304.txt', params)
+            np.savetxt(args.output+'params_line_304.txt', params)
             
             for i in range(args.processes-1):
                 parargs.append((params[i*samples_per_process:(i+1)*samples_per_process], args.output, r, args.input, i))
@@ -330,7 +331,8 @@ for r in range(len(posteriors), num_rounds):
         else:
             trans = compute(np_theta)
             
-        np.savetxt('phase_line_339.txt', phase)
+        np.savetxt(args.output+'phase_line_339.txt', phase)
+        np.savetxt(args.output+'trans_line_339.txt', trans)
         
         if args.clean:
             for j in range(args.processes):
@@ -350,14 +352,14 @@ for r in range(len(posteriors), num_rounds):
             theta[len(trans):] = proposal.sample((remain,))
             np_theta = theta.cpu().detach().numpy().reshape([-1, len(prior_bounds)])
             
-            np.savetxt('np_theta_line_372.txt', np_theta)
+            np.savetxt(args.output+'np_theta_line_372.txt', np_theta)
             
             if args.obs_phase!='None':
                 trans_ac,phase_ac=compute(np_theta[len(trans):])
             else:
                 trans_ac=compute(np_theta[len(trans):])
                 
-            np.savetxt('phase_ac_line_377.txt', phase_ac)
+            np.savetxt(args.output+'phase_ac_line_377.txt', phase_ac)
             
             sm_ac = np.sum(trans_ac, axis=1)
 
@@ -390,7 +392,8 @@ for r in range(len(posteriors), num_rounds):
     if args.obs_phase!='None':
         phase_aug = np.repeat(phase, args.naug, axis=0) #+ phase_noise*np.random.randn(samples_per_round[r]*args.naug, phase.shape[1])
     
-    np.savetxt('phase_aug_line_465.txt', phase_aug)
+    np.savetxt(args.output+'phase_aug_line_465.txt', phase_aug)
+    np.savetxt(args.output+'trans_aug_line_465.txt', trans_aug)
     
     if r==0:
         ## Fit PCA and xscaler with samples from prior only
@@ -438,7 +441,7 @@ for r in range(len(posteriors), num_rounds):
             
     x = torch.tensor(x_f, dtype=torch.float32, device=device)
     
-    np.savetxt('x_f_line_535.txt', x)
+    np.savetxt(args.output+'x_f_line_535.txt', x_f)
     
     logging.info('Training...')
     tic = time()
@@ -491,7 +494,7 @@ for r in range(len(posteriors), num_rounds):
         else:
             default_x = obs_trans.reshape(1,-1)
             
-    np.savetxt('default_x_line_595.txt', default_x)
+    np.savetxt(args.output+'default_x_line_595.txt', default_x)
             
     proposal = posterior.set_default_x(default_x)
             
