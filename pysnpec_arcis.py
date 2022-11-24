@@ -262,10 +262,10 @@ for r in range(len(posteriors), num_rounds):
     logging.info('Round '+str(r))
     
     if args.reuse_prior_samples and r==0:
-        print('Reusing prior samples')
-        logging.info('Reusing prior samples')
+        print('Reusing prior samples from '+ args.samples_dir)
+        logging.info('Reusing prior samples from '+ args.samples_dir)
         trans = np.load(args.samples_dir+'/trans_round_'+str(0)+'.npy')[:samples_per_round[0]]
-        if args.phasecurve:
+        if args.obs_phase!='None':
             phase = np.load(args.samples_dir+'/phase_round_'+str(0)+'.npy')[:samples_per_round[0]]#########
             np_theta = np.load(args.samples_dir+'/Y_round_'+str(0)+'.npy')[:samples_per_round[0]]
     else:
@@ -358,6 +358,10 @@ for r in range(len(posteriors), num_rounds):
                 trans_ac,phase_ac=compute(np_theta[len(trans):])
             else:
                 trans_ac=compute(np_theta[len(trans):])
+                
+            if args.clean:
+                for j in range(args.processes):
+                    os.system('rm -rf '+args.output + 'round_'+str(r)+str(j)+'_out/')
                 
             np.savetxt(args.output+'phase_ac_line_377.txt', phase_ac)
             
@@ -507,7 +511,7 @@ for j in range(num_rounds):
     print('Drawing samples from round ', j)
     logging.info('Drawing samples from round ' + str(j))
     posterior = posteriors[j]
-    tsamples = posterior.sample((2000,), x=default_x, show_progress_bars=True)
+    tsamples = posterior.sample((10000,), x=default_x, show_progress_bars=True)
     if args.ynorm:
         samples.append(yscaler.inverse_transform(tsamples.cpu().detach().numpy()))
     else:
