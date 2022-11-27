@@ -160,7 +160,8 @@ prior_bounds = np.loadtxt(args.prior)
 
 if args.ynorm:
     yscaler = Normalizer(prior_bounds)
-    pickle.dump(yscaler, open(args.output+'/yscaler.p', 'wb'))
+    with open(args.output+'/yscaler.p', 'wb') as file_yscaler:
+        pickle.dump(yscaler, file_yscaler)
 
     prior_min = torch.tensor(yscaler.transform(prior_bounds[:,0].reshape(1, -1)).reshape(-1))
     prior_max = torch.tensor(yscaler.transform(prior_bounds[:,1].reshape(1, -1)).reshape(-1))
@@ -262,8 +263,8 @@ for r in range(len(posteriors), num_rounds):
     logging.info('Round '+str(r))
     
     if args.reuse_prior_samples and r==0:
-        print('Reusing prior samples from '+ args.samples_dir)
-        logging.info('Reusing prior samples from '+ args.samples_dir)
+        print('Reusing '+int(samples_per_round[0])+' prior samples from '+ args.samples_dir)
+        logging.info('Reusing '+int(samples_per_round[0])+' prior samples from '+ args.samples_dir)
         trans = np.load(args.samples_dir+'/trans_round_'+str(0)+'.npy')[:samples_per_round[0]]
         if args.obs_phase!='None':
             phase = np.load(args.samples_dir+'/phase_round_'+str(0)+'.npy')[:samples_per_round[0]]#########
@@ -277,13 +278,13 @@ for r in range(len(posteriors), num_rounds):
         
 #        np.savetxt(args.output+'np_theta_line_279.txt', np_theta)
         
-        if args.dont_plot:
-            if args.ynorm:
-                post_plot = yscaler.inverse_transform(np_theta)
-            else:
-                post_plot = np_theta
-            fig1 = corner(post_plot, smooth=0.5, range=prior_bounds)
-            plt.savefig(args.output+'corner_'+str(r)+'.pdf', bbox_inches='tight')
+#        if args.dont_plot:
+#            if args.ynorm:
+#                post_plot = yscaler.inverse_transform(np_theta)
+#            else:
+#                post_plot = np_theta
+#            fig1 = corner(post_plot, smooth=0.5, range=prior_bounds)
+#            plt.savefig(args.output+'corner_'+str(r)+'.pdf', bbox_inches='tight')
         
         # COMPUTE MODELS
         
@@ -373,23 +374,26 @@ for r in range(len(posteriors), num_rounds):
                 
             print('Trans', trans.shape)
             print('Phase', phase.shape)
-                
-        np.save(args.output+'/trans_round_'+str(r)+'.npy', trans)
+        
+        with open(args.output+'/trans_round_'+str(r)+'.npy', 'wb') as file_trans:
+            np.save(file_trans, trans)
         if args.obs_phase!='None':
-            np.save(args.output+'/phase_round_'+str(r)+'.npy', phase)
-        np.save(args.output+'/Y_round_'+str(r)+'.npy', np_theta)
+            with open(args.output+'/phase_round_'+str(r)+'.npy', 'wb') as file_phase:
+                np.save(file_phase, phase)
+        with open(args.output+'/Y_round_'+str(r)+'.npy', 'wb') as file_np_theta:
+            np.save(file_np_theta, np_theta)
                 
-        if args.dont_plot:
-            plt.figure(figsize=(15,5))
-            plt.errorbar(x = x_o[:,0], y=x_o[:,1], yerr=x_o[:,2], color='red', ls='', fmt='.', label='Observation')
-            plt.plot(x_o[:,0], np.median(X, axis=0), c='mediumblue', label='Round '+str(r)+' models')
-            plt.fill_between(x_o[:,0], np.percentile(X, 84, axis=0), np.percentile(X, 16, axis=0), color='mediumblue', alpha=0.4)
-            plt.fill_between(x_o[:,0], np.percentile(X, 97.8, axis=0), np.percentile(X, 2.2, axis=0), color='mediumblue', alpha=0.1)
-            plt.xlabel(r'Wavelength ($\mu$m)')
-            plt.ylabel('Transit depth')
-            plt.legend()
-            plt.savefig(args.output+'round_'+str(r)+'_trans.pdf', bbox_inches='tight')
-     #######
+#        if args.dont_plot:
+#            plt.figure(figsize=(15,5))
+#            plt.errorbar(x = x_o[:,0], y=x_o[:,1], yerr=x_o[:,2], color='red', ls='', fmt='.', label='Observation')
+#            plt.plot(x_o[:,0], np.median(X, axis=0), c='mediumblue', label='Round '+str(r)+' models')
+#            plt.fill_between(x_o[:,0], np.percentile(X, 84, axis=0), np.percentile(X, 16, axis=0), color='mediumblue', alpha=0.4)
+#            plt.fill_between(x_o[:,0], np.percentile(X, 97.8, axis=0), np.percentile(X, 2.2, axis=0), color='mediumblue', alpha=0.1)
+#            plt.xlabel(r'Wavelength ($\mu$m)')
+#            plt.ylabel('Transit depth')
+#            plt.legend()
+#            plt.savefig(args.output+'round_'+str(r)+'_trans.pdf', bbox_inches='tight')
+#     #######
      
     theta = torch.tensor(np.repeat(np_theta, args.naug, axis=0), dtype=torch.float32, device=device)
     trans_aug = np.repeat(trans, args.naug, axis=0) #+ trans_noise*np.random.randn(samples_per_round[r]*args.naug, obs_trans.shape[0])
@@ -404,24 +408,28 @@ for r in range(len(posteriors), num_rounds):
         if args.do_pca:
             pca_trans = PCA(n_components=args.n_pca_trans)
             pca_trans.fit(trans)
-            pickle.dump(pca_trans, open(args.output+'/pca_trans.p', 'wb'))
+            with open(args.output+'/pca_trans.p', 'wb') as file_pca_trans:
+                pickle.dump(pca_trans, file_pca_trans)
             if args.obs_phase!='None':
                 pca_phase = PCA(n_components=args.n_pca_phase)
                 pca_phase.fit(phase)
-                pickle.dump(pca_phase, open(args.output+'/pca_phase.p', 'wb'))
+                with open(args.output+'/pca_phase.p', 'wb') as file_pca_phase:
+                    pickle.dump(pca_phase, file_pca_phase)
             if args.xnorm:
                 if args.obs_phase!='None':
                     xscaler = StandardScaler().fit(np.concatenate((pca_trans.transform(trans_aug), 
                                                                    pca_phase.transform(phase_aug)), axis=1))
                 else:
                     xscaler = StandardScaler().fit(pca_trans.transform(trans))
-                pickle.dump(xscaler, open(args.output+'/xscaler.p', 'wb'))
+                with open(args.output+'/xscaler.p', 'wb') as file_xscaler:
+                    pickle.dump(xscaler, file_xscaler)
         elif args.xnorm:
             if args.obs_phase!='None':
                 xscaler = StandardScaler().fit(np.concatenate((trans, phase), axis=1))
             else:
                 xscaler = StandardScaler().fit(trans)
-            pickle.dump(xscaler, open(args.output+'/xscaler.p', 'wb'))
+            with open(args.output+'/xscaler.p', 'wb') as file_xscaler:
+                pickle.dump(xscaler, file_xscaler)
     
     if args.do_pca:
         if args.obs_phase!='None':
@@ -475,7 +483,8 @@ for r in range(len(posteriors), num_rounds):
     posteriors.append(posterior)
     print('Saving posteriors ')
     logging.info('Saving posteriors ')
-    torch.save(posteriors, args.output+'/posteriors.pt')
+    with open(args.output+'/posteriors.pt', 'wb') as file_posteriors:
+        torch.save(posteriors, file_posteriors)
     
     if args.do_pca:
         if args.obs_phase!='None':
@@ -519,13 +528,15 @@ for j in range(num_rounds):
 
 print('Saving samples ')
 logging.info('Saving samples ')
-pickle.dump(samples, open(args.output+'/samples.p', 'wb'))
+with open(args.output+'/samples.p', 'wb') as file_samples:
+    pickle.dump(samples, file_samples)
 
-np.savetxt(args.output+'/post_equal_weights.txt', samples[-1])
+with open(args.output+'/post_equal_weights.txt', 'wb') as file_post_equal_weights:
+    np.savetxt(file_post_equal_weights, samples[-1])
 
-if args.dont_plot:
-    fig1 = corner(samples[-1], smooth=0.5, range=prior_bounds)
-    plt.savefig(args.output+'corner_'+str(num_rounds)+'.pdf', bbox_inches='tight')
+#if args.dont_plot:
+#    fig1 = corner(samples[-1], smooth=0.5, range=prior_bounds)
+#    plt.savefig(args.output+'corner_'+str(num_rounds)+'.pdf', bbox_inches='tight')
 
 print('Time elapsed: ', time()-supertic)
 logging.info('Time elapsed: '+str(time()-supertic))
