@@ -31,7 +31,7 @@ logging.getLogger('matplotlib').setLevel(logging.WARNING)
 import matplotlib.pyplot as plt
 from corner import corner
 from multiprocessing import Process, Pool
-from simulator import simulator
+from simulator_emis import simulator
 from spectres import spectres
 
 supertic = time()
@@ -41,8 +41,6 @@ supertic = time()
 def parse_args():
     parser = argparse.ArgumentParser(description=('Train SNPE_C'))
     parser.add_argument('-input', type=str, help='ARCiS input file for the retrieval')
-    parser.add_argument('-obs_trans', type=str, default='None', help='File with transit observation')
-    parser.add_argument('-obs_phase', type=str, default='None', help='File with phase curve observation')
     parser.add_argument('-obs_emis', type=str, default='None', help='File with eclipse observation')
     parser.add_argument('-output', type=str, default='output/', help='Directory to save output')
     parser.add_argument('-prior', type=str, default='prior.dat', help='File with prior bounds (box uniform)')
@@ -52,8 +50,7 @@ def parse_args():
     parser.add_argument('-samples_per_round', type=str, default='5000', help='Number of samples to draw for training each round. If a single value, that number of samples will be drawn for num_rounds rounds. If multiple values, at each round, the number of samples specified will be drawn. Default: 1000.')
     parser.add_argument('-hidden', type=int, default=50)
     parser.add_argument('-do_pca', action='store_true')
-    parser.add_argument('-n_pca_trans', type=int, default=50)
-    parser.add_argument('-n_pca_phase', type=int, default=50)
+    parser.add_argument('-n_pca_emis', type=int, default=50)
     parser.add_argument('-transforms', type=int, default=5)
     parser.add_argument('-bins', type=int, default=5)
     parser.add_argument('-blocks', type=int, default=2)
@@ -133,26 +130,9 @@ device = args.device
 ### 1. Load observation/s
 print('Loading observations... ')
 logging.info('Loading observations...')
-if args.obs_trans!='None':
-    obs_trans = np.loadtxt(args.obs_trans)[:,1]
-    noise_trans = np.loadtxt(args.obs_trans)[:,2]
-if args.obs_phase!='None':
-    phase_str = (args.obs_phase).split()
-    nwvl = np.zeros(len(phase_str))
-    for i in range(len(phase_str)):
-        nwvl[i] = len(np.loadtxt(phase_str[i])[:,0])
-    l=[0]
-    obs_phase = np.zeros(int(sum(nwvl)))
-    for j in range(len(phase_str)):
-        phasej = np.loadtxt(phase_str[j])[:,1]
-        l.append(len(phasej))
-        obs_phase[sum(l[:j+1]):sum(l[:j+2])] = phasej   #### obs_phase 1D array of flattened phasecurves (len = sum of lens of each phase observation)
-if args.obs_emis!='None':
-    obs_emis = np.loadtxt(args.obs_emis)[:,1]
-    noise_emis = np.loadtxt(args.obs_emis)[:,2]
-        
-#np.savetxt(args.output+'obs_phase_line_155.txt', obs_phase)
-#np.savetxt(args.output+'obs_trans_line_155.txt', obs_trans)
+
+obs_emis = np.loadtxt(args.obs_emis)[:,1]
+noise_emis = np.loadtxt(args.obs_emis)[:,2]
 
 #embedding_net = SummaryNet(obs_trans.shape[0], args.embed_size)
 
@@ -269,10 +249,8 @@ for r in range(len(posteriors), num_rounds):
     if args.reuse_prior_samples and r==0:
         print('Reusing '+str(samples_per_round[0])+' prior samples from '+ args.samples_dir)
         logging.info('Reusing '+str(samples_per_round[0])+' prior samples from '+ args.samples_dir)
-        trans = np.load(args.samples_dir+'/trans_round_'+str(0)+'.npy')[:samples_per_round[0]]
-        if args.obs_phase!='None':
-            phase = np.load(args.samples_dir+'/phase_round_'+str(0)+'.npy')[:samples_per_round[0]]#########
-            np_theta = np.load(args.samples_dir+'/Y_round_'+str(0)+'.npy')[:samples_per_round[0]]
+        emis = np.load(args.samples_dir+'/emis_round_'+str(0)+'.npy')[:samples_per_round[0]]
+        np_theta = np.load(args.samples_dir+'/Y_round_'+str(0)+'.npy')[:samples_per_round[0]]
     else:
         ##### drawing samples and computing fwd models
         logging.info('Drawing '+str(samples_per_round[r])+' samples')
@@ -311,58 +289,33 @@ for r in range(len(posteriors), num_rounds):
 
             tic=time()
             pool = Pool(processes = args.processes)
-            if args.obs_phase!='None':
-                trans_phase = pool.starmap(simulator, parargs)
-                trans = np.zeros([len(np_theta), len(obs_trans)])
-                phase = np.zeros([len(np_theta), int(sum(nwvl))])
-                print('Joining processes...')
-                for i in trange(args.processes-1):
-                    trans[i*samples_per_process:(i+1)*samples_per_process] = trans_phase[i][0]
-                    phase[i*samples_per_process:(i+1)*samples_per_process] = trans_phase[i][1]
-                trans[(args.processes-1)*samples_per_process:] = trans_phase[(args.processes-1)][0]
-                phase[(args.processes-1)*samples_per_process:] = trans_phase[(args.processes-1)][1]
-                print('Time elapsed: ', time()-tic)
-                logging.info(('Time elapsed: ', time()-tic))
-                return trans, phase
-            else:
-                trans_s = pool.starmap(simulator, parargs)
-                trans = np.concatenate(trans_s)
-                print('Time elapsed: ', time()-tic)
-                logging.info(('Time elapsed: ', time()-tic))
-                return trans
+            emis_s = pool.starmap(simulator, parargs)
+            emis = np.concatenate(emis_s)
+            print('Time elapsed: ', time()-tic)
+            logging.info(('Time elapsed: ', time()-tic))
+            return emis
         
-        if args.obs_phase!='None':
-            trans,phase = compute(np_theta)
-        else:
-            trans = compute(np_theta)
-            
-#        np.savetxt(args.output+'phase_line_339.txt', phase)
-#        np.savetxt(args.output+'trans_line_339.txt', trans)
+        emis = compute(np_theta)
         
         if args.clean:
             for j in range(args.processes):
                 os.system('rm -rf '+args.output + 'round_'+str(r)+str(j)+'_out/')
                 
-        sm = np.sum(trans, axis=1)
+        sm = np.sum(emis, axis=1)
 
-        trans = trans[sm!=0]
-        if args.obs_phase!='None':
-            phase = phase[sm!=0]
+        emis = emis[sm!=0]
         
-        while len(trans)<samples_per_round[r]:
-            remain = samples_per_round[r]-len(trans)
+        while len(emis)<samples_per_round[r]:
+            remain = samples_per_round[r]-len(emis)
             print('ARCiS crashed, computing remaining ' +str(remain)+' models.')
             logging.info('ARCiS crashed, computing remaining ' +str(remain)+' models.')
             
-            theta[len(trans):] = proposal.sample((remain,))
+            theta[len(emis):] = proposal.sample((remain,))
             np_theta = theta.cpu().detach().numpy().reshape([-1, len(prior_bounds)])
             
 #            np.savetxt(args.output+'np_theta_line_372.txt', np_theta)
             
-            if args.obs_phase!='None':
-                trans_ac,phase_ac=compute(np_theta[len(trans):])
-            else:
-                trans_ac=compute(np_theta[len(trans):])
+            emis_ac=compute(np_theta[len(emis):])
                 
             if args.clean:
                 for j in range(args.processes):
@@ -370,20 +323,14 @@ for r in range(len(posteriors), num_rounds):
                 
 #            np.savetxt(args.output+'phase_ac_line_377.txt', phase_ac)
             
-            sm_ac = np.sum(trans_ac, axis=1)
+            sm_ac = np.sum(emis_ac, axis=1)
 
-            trans = np.concatenate((trans, trans_ac[sm_ac!=0]))
-            if args.obs_phase!='None':
-                phase = np.concatenate((phase, phase_ac[sm_ac!=0]))
+            emis = np.concatenate((emis, emis_ac[sm_ac!=0]))
                 
-            print('Trans', trans.shape)
-            print('Phase', phase.shape)
+            print('Emis', emis.shape)
         
-        with open(args.output+'/trans_round_'+str(r)+'.npy', 'wb') as file_trans:
-            np.save(file_trans, trans)
-        if args.obs_phase!='None':
-            with open(args.output+'/phase_round_'+str(r)+'.npy', 'wb') as file_phase:
-                np.save(file_phase, phase)
+        with open(args.output+'/emis_round_'+str(r)+'.npy', 'wb') as file_emis:
+            np.save(file_emis, emis)
         with open(args.output+'/Y_round_'+str(r)+'.npy', 'wb') as file_np_theta:
             np.save(file_np_theta, np_theta)
                 
@@ -400,60 +347,34 @@ for r in range(len(posteriors), num_rounds):
 #     #######
      
     theta = torch.tensor(np.repeat(np_theta, args.naug, axis=0), dtype=torch.float32, device=device)
-    trans_aug = np.repeat(trans, args.naug, axis=0) #+ trans_noise*np.random.randn(samples_per_round[r]*args.naug, obs_trans.shape[0])
-    if args.obs_phase!='None':
-        phase_aug = np.repeat(phase, args.naug, axis=0) #+ phase_noise*np.random.randn(samples_per_round[r]*args.naug, phase.shape[1])
-    
-#    np.savetxt(args.output+'phase_aug_line_465.txt', phase_aug)
-#    np.savetxt(args.output+'trans_aug_line_465.txt', trans_aug)
+    emis_aug = np.repeat(emis, args.naug, axis=0) + noise_emis*np.random.randn(samples_per_round[r]*args.naug, obs_emis.shape[0])
     
     if r==0:
         ## Fit PCA and xscaler with samples from prior only
         if args.do_pca:
-            pca_trans = PCA(n_components=args.n_pca_trans)
-            pca_trans.fit(trans)
-            with open(args.output+'/pca_trans.p', 'wb') as file_pca_trans:
-                pickle.dump(pca_trans, file_pca_trans)
-            if args.obs_phase!='None':
-                pca_phase = PCA(n_components=args.n_pca_phase)
-                pca_phase.fit(phase)
-                with open(args.output+'/pca_phase.p', 'wb') as file_pca_phase:
-                    pickle.dump(pca_phase, file_pca_phase)
+            pca_emis = PCA(n_components=args.n_pca_emis)
+            pca_emis.fit(emis)
+            with open(args.output+'/pca_emis.p', 'wb') as file_pca_emis:
+                pickle.dump(pca_emis, file_pca_emis)
             if args.xnorm:
-                if args.obs_phase!='None':
-                    xscaler = StandardScaler().fit(np.concatenate((pca_trans.transform(trans_aug), 
-                                                                   pca_phase.transform(phase_aug)), axis=1))
-                else:
-                    xscaler = StandardScaler().fit(pca_trans.transform(trans))
+                xscaler = StandardScaler().fit(pca_emis.transform(emis))
                 with open(args.output+'/xscaler.p', 'wb') as file_xscaler:
                     pickle.dump(xscaler, file_xscaler)
         elif args.xnorm:
-            if args.obs_phase!='None':
-                xscaler = StandardScaler().fit(np.concatenate((trans, phase), axis=1))
-            else:
-                xscaler = StandardScaler().fit(trans)
+            xscaler = StandardScaler().fit(emis)
             with open(args.output+'/xscaler.p', 'wb') as file_xscaler:
                 pickle.dump(xscaler, file_xscaler)
     
     if args.do_pca:
-        if args.obs_phase!='None':
-            x_i = np.concatenate((pca_trans.transform(trans_aug), pca_phase.transform(phase_aug)), axis=1)
-        else:
-            x_i = pca_trans.transform(trans_aug)
+        x_i = pca_emis.transform(emis_aug)
         if args.xnorm:
             x_f = xscaler.transform(x_i)
         else:
             x_f = x_i
     elif args.xnorm:
-        if args.obs_phase!='None':
-            x_f = xscaler.transform(np.concatenate((trans_aug, phase_aug), axis=1))
-        else:
-            x_f = xscaler.transform(trans_aug)
+        x_f = xscaler.transform(emis_aug)
     else:
-        if args.obs_phase!='None':
-            x_f = np.concatenate((trans_aug, phase_aug), axis=1)
-        else:
-            x_f = trans_aug
+        x_f = emis_aug
             
     x = torch.tensor(x_f, dtype=torch.float32, device=device)
     
@@ -491,27 +412,15 @@ for r in range(len(posteriors), num_rounds):
         torch.save(posteriors, file_posteriors)
     
     if args.do_pca:
-        if args.obs_phase!='None':
-            default_x_pca = np.concatenate((pca_trans.transform(obs_trans.reshape(1,-1)),
-                            pca_phase.transform(obs_phase.reshape(1,-1))), axis=1)
-        else:
-            default_x_pca = pca_trans.transform(obs_trans.reshape(1,-1))
+        default_x_pca = pca_emis.transform(obs_emis.reshape(1,-1))
         if args.xnorm:
             default_x = xscaler.transform(default_x_pca)
         else:
             default_x = default_x_pca
     elif args.xnorm:
-        if args.obs_phase!='None':
-            default_x = xscaler.transform(np.concatenate((obs_trans.reshape(1,-1), obs_phase.reshape(1,-1)), axis=1))
-        else:
-            default_x = xscaler.transform(obs_trans.reshape(1,-1))
+        default_x = xscaler.transform(obs_emis.reshape(1,-1))
     else:
-        if args.obs_phase!='None':
-            default_x = np.concatenate((obs_trans.reshape(1,-1), obs_phase.reshape(1,-1)), axis=1)
-        else:
-            default_x = obs_trans.reshape(1,-1)
-            
-#    np.savetxt(args.output+'default_x_line_595.txt', default_x)
+        default_x = obs_emis.reshape(1,-1)
             
     proposal = posterior.set_default_x(default_x)
             
