@@ -42,5 +42,5 @@ def simulator(parameters, directory, r, input_file, n):
             emis[i] = np.loadtxt(model_dir+'/obs001')[:,1]
         except:
             print('Emis: ', model_dir)
-        
-        return emis
+    
+    return emis

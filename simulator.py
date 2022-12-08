@@ -23,9 +23,9 @@ def simulator(parameters, directory, r, input_file, n):
     dirx = directory + 'round_'+str(r)+str(n)+'_out/'
     phaseR = os.path.isfile(dirx+'model000001/phasecurve')
     
-    emisR = os.path.isfile(dirx+'model000001/emis')
+#    emisR = os.path.isfile(dirx+'model000001/emis')
     
-    sizet = np.loadtxt(dirx+'model000001/obs1').shape[0]
+    sizet = np.loadtxt(dirx+'model000001/obs011').shape[0]
     trans = np.zeros([parameters.shape[0], sizet])
     
     if phaseR:
@@ -42,8 +42,8 @@ def simulator(parameters, directory, r, input_file, n):
         phase = np.zeros([parameters.shape[0], sizep])##
         ###############################################################
         
-    if emisR:
-            trans = np.zeros([parameters.shape[0], sizet])
+#    if emisR:
+#            trans = np.zeros([parameters.shape[0], sizet])
         
     print('Reading ARCiS output')
     logging.info('Reading ARCiS output')

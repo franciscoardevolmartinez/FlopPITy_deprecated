@@ -33,6 +33,7 @@ from corner import corner
 from multiprocessing import Process, Pool
 from simulator import simulator
 from spectres import spectres
+import pywhatkit
 
 supertic = time()
 
@@ -134,25 +135,27 @@ device = args.device
 print('Loading observations... ')
 logging.info('Loading observations...')
 if args.obs_trans!='None':
+    wvl_trans = np.loadtxt(args.obs_trans)[:,0]
     obs_trans = np.loadtxt(args.obs_trans)[:,1]
     noise_trans = np.loadtxt(args.obs_trans)[:,2]
 if args.obs_phase!='None':
+    print('Reading phase curve...')
+    logging.info('Reading phase curve...')
     phase_str = (args.obs_phase).split()
     nwvl = np.zeros(len(phase_str))
     for i in range(len(phase_str)):
         nwvl[i] = len(np.loadtxt(phase_str[i])[:,0])
     l=[0]
     obs_phase = np.zeros(int(sum(nwvl)))
+    noise_phase =np.zeros(int(sum(nwvl)))
     for j in range(len(phase_str)):
-        phasej = np.loadtxt(phase_str[j])[:,1]
+        phasej = np.loadtxt(phase_str[j])
         l.append(len(phasej))
-        obs_phase[sum(l[:j+1]):sum(l[:j+2])] = phasej   #### obs_phase 1D array of flattened phasecurves (len = sum of lens of each phase observation)
+        obs_phase[sum(l[:j+1]):sum(l[:j+2])] = phasej[:,1]
+        noise_phase[sum(l[:j+1]):sum(l[:j+2])] = phasej[:,2]  #### obs_phase 1D array of flattened phasecurves (len = sum of lens of each phase observation)
 if args.obs_emis!='None':
     obs_emis = np.loadtxt(args.obs_emis)[:,1]
     noise_emis = np.loadtxt(args.obs_emis)[:,2]
-        
-#np.savetxt(args.output+'obs_phase_line_155.txt', obs_phase)
-#np.savetxt(args.output+'obs_trans_line_155.txt', obs_trans)
 
 #embedding_net = SummaryNet(obs_trans.shape[0], args.embed_size)
 
@@ -187,14 +190,6 @@ else:
     if args.xnorm and not args.do_pca:
         xscaler = pickle.load(open(args.output+'/xscaler.p', 'rb'))
         if args.obs_phase!='None':
-#            nwvl = np.zeros(len(phase))
-#            for i in range(len(phase)):
-#                nwvl[i] = len(obs_phase[i][:,0])
-#            obs_phase_flat = np.zeros(int(sum(nwvl)))
-#            for i in range(10):
-#                new_wvl = obs_phase[i][:,0]
-#                obs_phase_flat[int(sum(nwvl[:i])):int(sum(nwvl[:i+1]))] = obs_phase[i][:,1]
-            
             default_x = xscaler.transform(np.concatenate((obs_trans.reshape(1,-1),
                                 obs_phase.reshape(1,-1)), axis=1))
         proposal = posteriors[-1].set_default_x(default_x)
@@ -206,10 +201,6 @@ else:
         pca_trans = pickle.load(open(args.output+'/pca_trans.p', 'rb'))
         if args.obs_phase!='None':
             pca_phase = pickle.load(open(args.output+'/pca_phase.p', 'rb'))
-        
-#            nwvl = np.zeros(len(phase))
-#            for i in range(len(phase)):
-#                nwvl[i] = len(obs_phase[i][:,0])
             obs_phase_flat = np.zeros(int(sum(nwvl)))
             for i in range(10):
                 new_wvl = obs_phase[i][:,0]
@@ -258,9 +249,6 @@ except:
 print('Training multi-round inference')
 logging.info('Training multi-round inference')
 
-pattern=[False, False, True]
-retrain = (num_rounds//3)*pattern+pattern[:num_rounds-3*(num_rounds//3)]
-
 for r in range(len(posteriors), num_rounds):
     print('\n')
     print('\n **** Training round ', r)
@@ -279,16 +267,18 @@ for r in range(len(posteriors), num_rounds):
         print('Samples per round: ', samples_per_round[r])
         theta = proposal.sample((samples_per_round[r],))
         np_theta = theta.cpu().detach().numpy().reshape([-1, len(prior_bounds)])
+                
+        if args.ynorm:
+            post_plot = yscaler.inverse_transform(np_theta)
+        else:
+            post_plot = np_theta
         
-#        np.savetxt(args.output+'np_theta_line_279.txt', np_theta)
-        
-#        if args.dont_plot:
-#            if args.ynorm:
-#                post_plot = yscaler.inverse_transform(np_theta)
-#            else:
-#                post_plot = np_theta
-#            fig1 = corner(post_plot, smooth=0.5, range=prior_bounds)
-#            plt.savefig(args.output+'corner_'+str(r)+'.pdf', bbox_inches='tight')
+        fig1 = corner(post_plot, color='rebeccapurple', show_titles=True, smooth=0.9, range=prior_bounds)
+        with open(args.output+'corner_'+str(r)+'.jpg', 'wb') as file_corner:
+            plt.savefig(file_corner, bbox_inches='tight')
+        plt.close('all')
+        with open(args.output+'corner_'+str(r)+'.jpg', 'rb') as file_corner:
+            pywhatkit.sendwhats_image("+31613945493", file_corner, 'Round '+str(r), 32, True)
         
         # COMPUTE MODELS
         
@@ -302,9 +292,7 @@ for r in range(len(posteriors), num_rounds):
                 params=yscaler.inverse_transform(np_theta)
             else:
                 params = np_theta
-                
-#            np.savetxt(args.output+'params_line_304.txt', params)
-            
+                            
             for i in range(args.processes-1):
                 parargs.append((params[i*samples_per_process:(i+1)*samples_per_process], args.output, r, args.input, i))
             parargs.append((params[(args.processes-1)*samples_per_process:], args.output, r, args.input, args.processes-1))
@@ -335,9 +323,6 @@ for r in range(len(posteriors), num_rounds):
             trans,phase = compute(np_theta)
         else:
             trans = compute(np_theta)
-            
-#        np.savetxt(args.output+'phase_line_339.txt', phase)
-#        np.savetxt(args.output+'trans_line_339.txt', trans)
         
         if args.clean:
             for j in range(args.processes):
@@ -356,9 +341,7 @@ for r in range(len(posteriors), num_rounds):
             
             theta[len(trans):] = proposal.sample((remain,))
             np_theta = theta.cpu().detach().numpy().reshape([-1, len(prior_bounds)])
-            
-#            np.savetxt(args.output+'np_theta_line_372.txt', np_theta)
-            
+                        
             if args.obs_phase!='None':
                 trans_ac,phase_ac=compute(np_theta[len(trans):])
             else:
@@ -367,17 +350,12 @@ for r in range(len(posteriors), num_rounds):
             if args.clean:
                 for j in range(args.processes):
                     os.system('rm -rf '+args.output + 'round_'+str(r)+str(j)+'_out/')
-                
-#            np.savetxt(args.output+'phase_ac_line_377.txt', phase_ac)
-            
+                            
             sm_ac = np.sum(trans_ac, axis=1)
 
             trans = np.concatenate((trans, trans_ac[sm_ac!=0]))
             if args.obs_phase!='None':
                 phase = np.concatenate((phase, phase_ac[sm_ac!=0]))
-                
-            print('Trans', trans.shape)
-            print('Phase', phase.shape)
         
         with open(args.output+'/trans_round_'+str(r)+'.npy', 'wb') as file_trans:
             np.save(file_trans, trans)
@@ -387,29 +365,45 @@ for r in range(len(posteriors), num_rounds):
         with open(args.output+'/Y_round_'+str(r)+'.npy', 'wb') as file_np_theta:
             np.save(file_np_theta, np_theta)
                 
-#        if args.dont_plot:
-#            plt.figure(figsize=(15,5))
-#            plt.errorbar(x = x_o[:,0], y=x_o[:,1], yerr=x_o[:,2], color='red', ls='', fmt='.', label='Observation')
-#            plt.plot(x_o[:,0], np.median(X, axis=0), c='mediumblue', label='Round '+str(r)+' models')
-#            plt.fill_between(x_o[:,0], np.percentile(X, 84, axis=0), np.percentile(X, 16, axis=0), color='mediumblue', alpha=0.4)
-#            plt.fill_between(x_o[:,0], np.percentile(X, 97.8, axis=0), np.percentile(X, 2.2, axis=0), color='mediumblue', alpha=0.1)
-#            plt.xlabel(r'Wavelength ($\mu$m)')
-#            plt.ylabel('Transit depth')
-#            plt.legend()
-#            plt.savefig(args.output+'round_'+str(r)+'_trans.pdf', bbox_inches='tight')
+        plt.figure(figsize=(15,5))
+        plt.errorbar(x = wvl_trans, y=obs_trans, yerr=noise_trans, color='red', ls='', fmt='.', label='Observation')
+        plt.plot(wvl_trans, np.median(trans, axis=0), c='mediumblue', label='Round '+str(r)+' fit')
+        plt.fill_between(wvl_trans, np.percentile(trans, 84, axis=0), np.percentile(trans, 16, axis=0), color='mediumblue', alpha=0.4)
+        plt.fill_between(wvl_trans, np.percentile(trans, 97.8, axis=0), np.percentile(trans, 2.2, axis=0), color='mediumblue', alpha=0.1)
+        plt.xlabel(r'Wavelength ($\mu$m)')
+        plt.ylabel('Transit depth')
+        plt.legend()
+        with open(args.output+'round_'+str(r)+'_trans.jpg', 'wb') as file_trans_fit:
+            plt.savefig(file_trans_fit, bbox_inches='tight')
+        plt.close('all')
+        with open(args.output+'round_'+str(r)+'_trans.jpg', 'rb') as file_trans_fit:
+            pywhatkit.sendwhats_image("+31613945493", file_trans_fit, 'Round '+str(r), 32, True)
+        
+        if args.obs_phase!='None':
+            plt.figure(figsize=(15,5))
+            plt.errorbar(x = np.arange(0,int(sum(nwvl))), y=obs_phase, yerr=noise_phase, color='red', ls='', fmt='.', label='Observation')
+            plt.plot(np.arange(0,int(sum(nwvl))), np.median(phase, axis=0), c='mediumblue', label='Round '+str(r)+' fit')
+            plt.fill_between(np.arange(0,int(sum(nwvl))), np.percentile(phase, 84, axis=0), np.percentile(phase, 16, axis=0), color='mediumblue', alpha=0.4)
+            plt.fill_between(np.arange(0,int(sum(nwvl))), np.percentile(phase, 97.8, axis=0), np.percentile(phase, 2.2, axis=0), color='mediumblue', alpha=0.1)
+            plt.ylabel('Transit depth')
+            plt.legend()
+            with open(args.output+'round_'+str(r)+'_phase.jpg', 'wb') as file_phase_fit:
+                plt.savefig(file_phase_fit, bbox_inches='tight')
+            plt.close('all')
+            with open(args.output+'round_'+str(r)+'_phase.jpg', 'rb') as file_phase_fit:
+                pywhatkit.sendwhats_image("+31613945493", file_phase_fit, 'Round '+str(r), 32, True)
 #     #######
      
     theta = torch.tensor(np.repeat(np_theta, args.naug, axis=0), dtype=torch.float32, device=device)
-    trans_aug = np.repeat(trans, args.naug, axis=0) #+ trans_noise*np.random.randn(samples_per_round[r]*args.naug, obs_trans.shape[0])
+    trans_aug = np.repeat(trans, args.naug, axis=0) + noise_trans*np.random.randn(samples_per_round[r]*args.naug, obs_trans.shape[0])
     if args.obs_phase!='None':
-        phase_aug = np.repeat(phase, args.naug, axis=0) #+ phase_noise*np.random.randn(samples_per_round[r]*args.naug, phase.shape[1])
-    
-#    np.savetxt(args.output+'phase_aug_line_465.txt', phase_aug)
-#    np.savetxt(args.output+'trans_aug_line_465.txt', trans_aug)
+        phase_aug = np.repeat(phase, args.naug, axis=0) + noise_phase*np.random.randn(samples_per_round[r]*args.naug, phase.shape[1])
     
     if r==0:
         ## Fit PCA and xscaler with samples from prior only
         if args.do_pca:
+            print('Fitting PCA...')
+            logging.info('Fitting PCA...')
             pca_trans = PCA(n_components=args.n_pca_trans)
             pca_trans.fit(trans)
             with open(args.output+'/pca_trans.p', 'wb') as file_pca_trans:
@@ -445,6 +439,8 @@ for r in range(len(posteriors), num_rounds):
         else:
             x_f = x_i
     elif args.xnorm:
+        print('Not doing any PCA...')
+        logging.info('Not doing any PCA...')
         if args.obs_phase!='None':
             x_f = xscaler.transform(np.concatenate((trans_aug, phase_aug), axis=1))
         else:
@@ -456,9 +452,7 @@ for r in range(len(posteriors), num_rounds):
             x_f = trans_aug
             
     x = torch.tensor(x_f, dtype=torch.float32, device=device)
-    
-#    np.savetxt(args.output+'x_f_line_535.txt', x_f)
-    
+        
     logging.info('Training...')
     tic = time()
     if args.method=='snpe':
@@ -510,9 +504,7 @@ for r in range(len(posteriors), num_rounds):
             default_x = np.concatenate((obs_trans.reshape(1,-1), obs_phase.reshape(1,-1)), axis=1)
         else:
             default_x = obs_trans.reshape(1,-1)
-            
-#    np.savetxt(args.output+'default_x_line_595.txt', default_x)
-            
+                        
     proposal = posterior.set_default_x(default_x)
             
     plt.close('all')
@@ -539,8 +531,12 @@ with open(args.output+'/post_equal_weights.txt', 'wb') as file_post_equal_weight
     np.savetxt(file_post_equal_weights, samples[-1])
 
 #if args.dont_plot:
-#    fig1 = corner(samples[-1], smooth=0.5, range=prior_bounds)
-#    plt.savefig(args.output+'corner_'+str(num_rounds)+'.pdf', bbox_inches='tight')
+fig1 = corner(samples[-1], smooth=0.5, range=prior_bounds)
+with open(args.output+'corner_'+str(num_rounds)+'.jpg', 'wb') as file_post_equal_corner:
+    plt.savefig(file_post_equal_corner, bbox_inches='tight')
+plt.close('all')
+with open(args.output+'corner_'+str(num_rounds)+'.jpg', 'rb') as file_post_equal_corner:
+    pywhatkit.sendwhats_image("+31613945493", file_post_equal_corner, 'Final corner plot', 32, True)
 
 print('Time elapsed: ', time()-supertic)
 logging.info('Time elapsed: '+str(time()-supertic))
