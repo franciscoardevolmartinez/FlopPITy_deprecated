@@ -81,14 +81,14 @@ class SummaryNet(nn.Module):
 
     def __init__(self, size_in, size_out): 
         super().__init__()
-        self.fc1 = nn.Linear(size_in, 4000)
-        self.fc2 = nn.Linear(4000, 2000)
-        self.fc3 = nn.Linear(2000, size_out)
+        self.fc1 = nn.Linear(size_in, 3000)
+#        self.fc2 = nn.Linear(4000, 2000)
+        self.fc2 = nn.Linear(3000, size_out)
 
     def forward(self, x):
         x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
-        x = self.fc3(x)
+#        x = F.relu(self.fc2(x))
+        x = self.fc2(x)
         return x
     
 ### Parameter transformer
@@ -134,7 +134,7 @@ logging.info('Loading observations...')
 obs_emis = np.loadtxt(args.obs_emis)[:,1]
 noise_emis = np.loadtxt(args.obs_emis)[:,2]
 
-embedding_net = SummaryNet(obs_emis.shape[0], 800)
+embedding_net = SummaryNet(obs_emis.shape[0], args.embed_size)
 
 ### 2. Load, create, and transform prior
 print('Loading prior from '+args.prior)

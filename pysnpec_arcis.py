@@ -33,7 +33,7 @@ from corner import corner
 from multiprocessing import Process, Pool
 from simulator import simulator
 from spectres import spectres
-import pywhatkit
+#import pywhatkit
 
 supertic = time()
 
@@ -277,8 +277,8 @@ for r in range(len(posteriors), num_rounds):
         with open(args.output+'corner_'+str(r)+'.jpg', 'wb') as file_corner:
             plt.savefig(file_corner, bbox_inches='tight')
         plt.close('all')
-        with open(args.output+'corner_'+str(r)+'.jpg', 'rb') as file_corner:
-            pywhatkit.sendwhats_image("+31613945493", file_corner, 'Round '+str(r), 32, True)
+        
+#        pywhatkit.sendwhats_image("+31613945493", args.output+'corner_'+str(r)+'.jpg', 'Round '+str(r), 32, True)
         
         # COMPUTE MODELS
         
@@ -376,8 +376,7 @@ for r in range(len(posteriors), num_rounds):
         with open(args.output+'round_'+str(r)+'_trans.jpg', 'wb') as file_trans_fit:
             plt.savefig(file_trans_fit, bbox_inches='tight')
         plt.close('all')
-        with open(args.output+'round_'+str(r)+'_trans.jpg', 'rb') as file_trans_fit:
-            pywhatkit.sendwhats_image("+31613945493", file_trans_fit, 'Round '+str(r), 32, True)
+#        pywhatkit.sendwhats_image("+31613945493", args.output+'round_'+str(r)+'_trans.jpg', 'Round '+str(r), 32, True)
         
         if args.obs_phase!='None':
             plt.figure(figsize=(15,5))
@@ -390,8 +389,7 @@ for r in range(len(posteriors), num_rounds):
             with open(args.output+'round_'+str(r)+'_phase.jpg', 'wb') as file_phase_fit:
                 plt.savefig(file_phase_fit, bbox_inches='tight')
             plt.close('all')
-            with open(args.output+'round_'+str(r)+'_phase.jpg', 'rb') as file_phase_fit:
-                pywhatkit.sendwhats_image("+31613945493", file_phase_fit, 'Round '+str(r), 32, True)
+#            pywhatkit.sendwhats_image("+31613945493", args.output+'round_'+str(r)+'_phase.jpg', 'Round '+str(r), 32, True)
 #     #######
      
     theta = torch.tensor(np.repeat(np_theta, args.naug, axis=0), dtype=torch.float32, device=device)
@@ -535,8 +533,7 @@ fig1 = corner(samples[-1], smooth=0.5, range=prior_bounds)
 with open(args.output+'corner_'+str(num_rounds)+'.jpg', 'wb') as file_post_equal_corner:
     plt.savefig(file_post_equal_corner, bbox_inches='tight')
 plt.close('all')
-with open(args.output+'corner_'+str(num_rounds)+'.jpg', 'rb') as file_post_equal_corner:
-    pywhatkit.sendwhats_image("+31613945493", file_post_equal_corner, 'Final corner plot', 32, True)
+#pywhatkit.sendwhats_image("+31613945493", args.output+'corner_'+str(num_rounds)+'.jpg', 'Final corner plot', 32, True)
 
 print('Time elapsed: ', time()-supertic)
 logging.info('Time elapsed: '+str(time()-supertic))
