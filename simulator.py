@@ -55,7 +55,7 @@ def simulator(parameters, directory, r, input_file, n, n_obs):
                 phasej = np.loadtxt(model_dir+obsn)[:,1]
                 l.append(len(phasej))
                 arcis_spec[i][sum(l[:j+1]):sum(l[:j+2])] = phasej
-            except:
-                print('Couldn\'t store model ', model_dir)
+        except:
+            print('Couldn\'t store model ', model_dir)
     
     return arcis_spec

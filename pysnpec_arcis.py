@@ -137,11 +137,13 @@ while i<len(clean_in):
         parnames.append(clean_in[i][16:-1])
         if clean_in[i+3]=='fitpar:log=.true.':
             prior_bounds.append([np.log10(float(clean_in[i+1][11:].replace('d','e'))), np.log10(float(clean_in[i+2][11:].replace('d','e')))])
-        elif clin[i+3]=='fitpar:log=.false.':
+        elif clean_in[i+3]=='fitpar:log=.false.':
             prior_bounds.append([float(clean_in[i+1][11:].replace('d','e')), float(clean_in[i+2][11:].replace('d','e'))])
         i+=4
     else:
         i+=1
+
+prior_bounds=np.array(prior_bounds)
         
 ### READ OBSERVATIONS
 obs=[]
@@ -157,8 +159,8 @@ while i<len(clean_in):
 print('Loading observations... ')
 logging.info('Loading observations...')
 nwvl = np.zeros(len(obs))
-for i in range(len(phase_str)):
-    nwvl[i] = len(np.loadtxt(obs)[:,0])
+for i in range(len(obs)):
+    nwvl[i] = len(np.loadtxt(obs[i])[:,0])
 l=[0]
 obs_spec = np.zeros(int(sum(nwvl)))
 noise_spec =np.zeros(int(sum(nwvl)))
@@ -222,7 +224,9 @@ except:
 print('Training multi-round inference')
 logging.info('Training multi-round inference')
 
-for r in range(len(posteriors), num_rounds):
+proposal=prior
+
+for r in range(num_rounds):
     print('\n')
     print('\n **** Training round ', r)
     logging.info('Round '+str(r))
@@ -284,7 +288,7 @@ for r in range(len(posteriors), num_rounds):
         arcis_spec = arcis_spec[sm!=0]
         
         while len(arcis_spec)<samples_per_round[r]:
-            remain = samples_per_round[r]-len(trans)
+            remain = samples_per_round[r]-len(arcis_spec)
             print('ARCiS crashed, computing remaining ' +str(remain)+' models.')
             logging.info('ARCiS crashed, computing remaining ' +str(remain)+' models.')
             
