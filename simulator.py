@@ -11,7 +11,7 @@ import os
 from tqdm import trange
 from multiprocessing import Process
 
-def simulator(parameters, directory, r, input_file, n):
+def simulator(parameters, directory, r, input_file, n, n_obs):
     fname = directory+'round_'+str(r)+str(n)+'_samples.dat'
     np.savetxt(fname, parameters)
 
@@ -21,29 +21,17 @@ def simulator(parameters, directory, r, input_file, n):
     os.system('cd .. ; '+ARCiS + ' '+input_file + ' -o '+directory+'round_'+str(r)+str(n)+'_out -s parametergridfile='+fname)
 
     dirx = directory + 'round_'+str(r)+str(n)+'_out/'
-    phaseR = os.path.isfile(dirx+'model000001/phasecurve')
-    
-#    emisR = os.path.isfile(dirx+'model000001/emis')
-    
-    sizet = np.loadtxt(dirx+'model000001/obs011').shape[0]
-    trans = np.zeros([parameters.shape[0], sizet])
-    
-    if phaseR:
-        sizep = 0
-        for j in range(10):
-            if j+1<10:
-                obsn = 'obs00'+str(j+1)
-            elif j+1<100:
-                obsn = 'obs0'+str(j+1)
-            phasej = np.loadtxt(dirx+'model000001/'+obsn)[:,1]
-            sizep += len(phasej)
+
+    size = 0
+    for j in range(n_obs):
+        if j+1<10:
+            obsn = 'obs00'+str(j+1)
+        elif j+1<100:
+            obsn = 'obs0'+str(j+1)
+        phasej = np.loadtxt(dirx+'model000001/'+obsn)[:,1]
+        size += len(phasej)
         
-        ###############################################################
-        phase = np.zeros([parameters.shape[0], sizep])##
-        ###############################################################
-        
-#    if emisR:
-#            trans = np.zeros([parameters.shape[0], sizet])
+    arcis_spec = np.zeros([parameters.shape[0], size])
         
     print('Reading ARCiS output')
     logging.info('Reading ARCiS output')
@@ -58,24 +46,16 @@ def simulator(parameters, directory, r, input_file, n):
         elif i+1<1e4:
             model_dir = dirx + 'model00'+str(i+1)
         try:
-            trans[i] = np.loadtxt(model_dir+'/obs011')[:,1]
-        except:
-            print('Trans: ', model_dir)
-        if phaseR:
-            try:
-                l=[0]
-                for j in range(10):
-                    if j+1<10:
-                        obsn = '/obs00'+str(j+1)
-                    elif j+1<100:
-                        obsn = '/obs0'+str(j+1)
-                    phasej = np.loadtxt(model_dir+obsn)[:,1]
-                    l.append(len(phasej))
-                    phase[i][sum(l[:j+1]):sum(l[:j+2])] = phasej
+            l=[0]
+            for j in range(n_obs):
+                if j+1<10:
+                    obsn = '/obs00'+str(j+1)
+                elif j+1<100:
+                    obsn = '/obs0'+str(j+1)
+                phasej = np.loadtxt(model_dir+obsn)[:,1]
+                l.append(len(phasej))
+                arcis_spec[i][sum(l[:j+1]):sum(l[:j+2])] = phasej
             except:
-                print('Phase: ', model_dir)
+                print('Couldn\'t store model ', model_dir)
     
-    if phaseR:
-        return [trans, phase]
-    else:
-        return trans
+    return arcis_spec
