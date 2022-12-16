@@ -411,12 +411,10 @@ with open(args.output+'/samples.p', 'wb') as file_samples:
 with open(args.output+'/post_equal_weights.txt', 'wb') as file_post_equal_weights:
     np.savetxt(file_post_equal_weights, samples[-1])
 
-#if args.dont_plot:
-fig1 = corner(samples[-1], smooth=0.5, range=prior_bounds)
-with open(args.output+'corner_'+str(num_rounds)+'.jpg', 'wb') as file_post_equal_corner:
+fig1 = corner(samples[-1], color='rebeccapurple', show_titles=True, smooth=0.9, range=prior_bounds, labels=parnames)
+with open(args.output+'corner_'+str(r)+'.jpg', 'wb') as file_post_equal_corner:
     plt.savefig(file_post_equal_corner, bbox_inches='tight')
 plt.close('all')
-#pywhatkit.sendwhats_image("+31613945493", args.output+'corner_'+str(num_rounds)+'.jpg', 'Final corner plot', 32, True)
 
 print('Time elapsed: ', time()-supertic)
 logging.info('Time elapsed: '+str(time()-supertic))
