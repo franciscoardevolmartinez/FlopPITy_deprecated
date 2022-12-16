@@ -225,6 +225,7 @@ print('Training multi-round inference')
 logging.info('Training multi-round inference')
 
 proposal=prior
+posteriors=[]
 
 for r in range(num_rounds):
     print('\n')
