@@ -11,7 +11,7 @@ import os
 from tqdm import trange
 from multiprocessing import Process
 
-def simulator(parameters, directory, r, input_file, n, n_obs):
+def simulator(parameters, directory, r, input_file, n, n_obs, size):
     fname = directory+'round_'+str(r)+str(n)+'_samples.dat'
     np.savetxt(fname, parameters)
 
@@ -21,15 +21,6 @@ def simulator(parameters, directory, r, input_file, n, n_obs):
     os.system('cd .. ; '+ARCiS + ' '+input_file + ' -o '+directory+'round_'+str(r)+str(n)+'_out -s parametergridfile='+fname)
 
     dirx = directory + 'round_'+str(r)+str(n)+'_out/'
-
-    size = 0
-    for j in range(n_obs):
-        if j+1<10:
-            obsn = 'obs00'+str(j+1)
-        elif j+1<100:
-            obsn = 'obs0'+str(j+1)
-        phasej = np.loadtxt(dirx+'model000001/'+obsn)[:,1]
-        size += len(phasej)
         
     arcis_spec = np.zeros([parameters.shape[0], size])
         

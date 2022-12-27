@@ -169,9 +169,6 @@ for j in range(len(obs)):
     l.append(len(phasej))
     obs_spec[sum(l[:j+1]):sum(l[:j+2])] = phasej[:,1]
     noise_spec[sum(l[:j+1]):sum(l[:j+2])] = phasej[:,2]
-    
-np.savetxt(args.output+'/obs_spec.txt', obs_spec)
-np.savetxt(args.output+'/noise_spec.txt', noise_spec)
 
 embedding_net = SummaryNet(obs_spec.shape[0], args.embed_size)
 
@@ -268,8 +265,8 @@ for r in range(num_rounds):
                 params = np_theta
                             
             for i in range(args.processes-1):
-                parargs.append((params[i*samples_per_process:(i+1)*samples_per_process], args.output, r, args.input, i, len(obs)))
-            parargs.append((params[(args.processes-1)*samples_per_process:], args.output, r, args.input, args.processes-1, len(obs)))
+                parargs.append((params[i*samples_per_process:(i+1)*samples_per_process], args.output, r, args.input, i, len(obs), len(obs_spec)))
+            parargs.append((params[(args.processes-1)*samples_per_process:], args.output, r, args.input, args.processes-1, len(obs), len(obs_spec)))
 
             tic=time()
             pool = Pool(processes = args.processes)
