@@ -121,14 +121,6 @@ print('Command line arguments: '+ str(args))
 device = args.device
 
 ### READ PARAMETERS
-
-def x2Ppoints(x, nTpoints):
-    logPpoint = np.empty(nTpoints)
-    logPpoint[0] = np.log10(Pmin) + np.log10(Pmax/Pmin) * (1- x^(1/nTpoints))
-    for i in range(1,nTpoints):
-        logPpoint[i] = log(Ppoint(i-1)) + log(Pmax/Ppoint(i-1)) * (1- x^(1/(N-i+1)))
-    
-
 inp = []
 with open(args.input, 'rb') as arcis_input:
     for lines in arcis_input:
@@ -137,12 +129,16 @@ clean_in = []
 for i in range(len(inp)):
     if inp[i]!='' and inp[i][0]!='*':
         clean_in.append(inp[i])
+        
+freeT=False
+    
 parnames=[]
 prior_bounds=[]
 i=0
 while i<len(clean_in):
     if 'fitpar:keyword' in clean_in[i]:
         if clean_in[i][16:-1] == 'tprofile':
+            freeT=True
             nTpoints = int(clean_in[i+1][9:])
             for j in range(nTpoints):
                 parnames.append('dTpoint00'+str(1+j))
@@ -150,6 +146,7 @@ while i<len(clean_in):
 #            for k in range(nTpoints):
 #                parnames.append('Ppoint00'+str(1+k))
             parnames.append('x')
+            prior_bounds.append([0,1])
             i+=3
         else:
             parnames.append(clean_in[i][16:-1])

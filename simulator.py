@@ -11,9 +11,20 @@ import os
 from tqdm import trange
 from multiprocessing import Process
 
-def simulator(parameters, directory, r, input_file, n, n_obs, size):
+def x2Ppoints(x, nTpoints):
+    Ppoint = np.empty(nTpoints)
+    Ppoint[0] = 10**(np.log10(Pmin) + np.log10(Pmax/Pmin) * (1- x^(1/nTpoints)))
+    for i in range(1,nTpoints):
+        Ppoint[i] = 10**(np.log10(Ppoint[i-1]) + np.log10(Pmax/Ppoint[i-1]) * (1- x^(1/(nTpoints-i+1))))
+    return Ppoint
+
+def simulator(parameters, directory, r, input_file, freeT, n, n_obs, size):
     fname = directory+'round_'+str(r)+str(n)+'_samples.dat'
-    np.savetxt(fname, parameters)
+    if freeT:
+        parametergrid =
+    else:
+        parametergrid = parameters
+    np.savetxt(fname, parametergrid)
 
     print('Running ARCiS')
     print('Computing '+str(len(parameters))+' models for process '+str(n))
