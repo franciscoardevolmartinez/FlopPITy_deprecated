@@ -158,8 +158,6 @@ while i<len(clean_in):
     else:
         i+=1
 
-print(parnames)
-
 prior_bounds=np.array(prior_bounds)
         
 ### READ OBSERVATIONS

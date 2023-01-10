@@ -24,10 +24,10 @@ def x2Ppoints(x, nTpoints):
 def simulator(parameters, directory, r, input_file, freeT, nTpoints, n, n_obs, size):
     fname = directory+'round_'+str(r)+str(n)+'_samples.dat'
     if freeT:
-        parametergrid = np.empty([parameters.shape[0], parameters.shape[1]+2*nTpoints-1])
+        parametergrid = np.empty([parameters.shape[0], parameters.shape[1]+nTpoints-1])
         parametergrid[:, 0:nTpoints+1] = parameters[:,0:nTpoints+1]
         Ppoints = x2Ppoints(parameters[:,nTpoints+1], nTpoints)
-        parametergrid[:,nTpoints+1:nTpoints+1+nTpoints] = Ppoints
+        parametergrid[:,nTpoints+1:nTpoints+1+nTpoints] = np.log10(Ppoints)
         parametergrid[:,nTpoints+1+nTpoints:] = parameters[:, nTpoints+2:]
     else:
         parametergrid = parameters
