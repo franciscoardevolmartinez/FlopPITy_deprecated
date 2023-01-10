@@ -45,6 +45,9 @@ def simulator(parameters, directory, r, input_file, freeT, nTpoints, n, n_obs, s
     print('Reading ARCiS output')
     logging.info('Reading ARCiS output')
     
+    T = np.zeros([parameters.shape[0], 25])
+    P = np.zeros(25)
+    
     for i in trange(parameters.shape[0]):
         if i+1<10:
             model_dir = dirx + 'model00000'+str(i+1)
@@ -55,6 +58,9 @@ def simulator(parameters, directory, r, input_file, freeT, nTpoints, n, n_obs, s
         elif i+1<1e4:
             model_dir = dirx + 'model00'+str(i+1)
         try:
+            PT = np.loadtxt(model_dir+'/mixingratios.dat')
+            T[i] = PT[:,0]
+            P = PT[:,1]
             l=[0]
             for j in range(n_obs):
                 if j+1<10:
@@ -66,5 +72,8 @@ def simulator(parameters, directory, r, input_file, freeT, nTpoints, n, n_obs, s
                 arcis_spec[i][sum(l[:j+1]):sum(l[:j+2])] = phasej
         except:
             print('Couldn\'t store model ', model_dir)
+        
+        np.savetxt(directory+'T.dat',T)
+        np.savetxt(directory+'P.dat',P)
     
     return arcis_spec
