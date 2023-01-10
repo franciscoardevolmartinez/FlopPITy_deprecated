@@ -282,8 +282,8 @@ for r in range(num_rounds):
                 params = np_theta
                             
             for i in range(args.processes-1):
-                parargs.append((params[i*samples_per_process:(i+1)*samples_per_process], args.output, r, args.input, i, len(obs), len(obs_spec)))
-            parargs.append((params[(args.processes-1)*samples_per_process:], args.output, r, args.input, args.processes-1, len(obs), len(obs_spec)))
+                parargs.append((params[i*samples_per_process:(i+1)*samples_per_process], args.output, r, args.input, freeT, nTpoints, i, len(obs), len(obs_spec)))
+            parargs.append((params[(args.processes-1)*samples_per_process:], args.output, r, args.input, freeT, nTpoints, args.processes-1, len(obs), len(obs_spec)))
 
             tic=time()
             pool = Pool(processes = args.processes)

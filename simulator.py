@@ -12,16 +12,23 @@ from tqdm import trange
 from multiprocessing import Process
 
 def x2Ppoints(x, nTpoints):
-    Ppoint = np.empty(nTpoints)
-    Ppoint[0] = 10**(np.log10(Pmin) + np.log10(Pmax/Pmin) * (1- x^(1/nTpoints)))
-    for i in range(1,nTpoints):
-        Ppoint[i] = 10**(np.log10(Ppoint[i-1]) + np.log10(Pmax/Ppoint[i-1]) * (1- x^(1/(nTpoints-i+1))))
+    Pmin=1e2
+    Pmax=1e-7
+    Ppoint = np.empty([len(x), nTpoints])
+    for j in range(len(x)):
+        Ppoint[j, 0] = 10**(np.log10(Pmin) + np.log10(Pmax/Pmin) * (1- x[j]**(1/nTpoints)))
+        for i in range(1, nTpoints):
+            Ppoint[j,i] = 10**(np.log10(Ppoint[j,i-1]) + np.log10(Pmax/Ppoint[j,i-1]) * (1- x[j]**(1/(nTpoints-i+1))))
     return Ppoint
 
-def simulator(parameters, directory, r, input_file, freeT, n, n_obs, size):
+def simulator(parameters, directory, r, input_file, freeT, nTpoints, n, n_obs, size):
     fname = directory+'round_'+str(r)+str(n)+'_samples.dat'
     if freeT:
-        parametergrid =
+        parametergrid = np.empty([parameters.shape[0], parameters.shape[1]+2*nTpoints-1])
+        parametergrid[:, 0:nTpoints+1] = parameters[:,0:nTpoints+1]
+        Ppoints = x2Ppoints(parameters[:,nTpoints+1], nTpoints)
+        parametergrid[:,nTpoints+1:nTpoints+1+nTpoints] = Ppoints
+        parametergrid[:,nTpoints+1+nTpoints:] = parameters[:, nTpoints+2:]
     else:
         parametergrid = parameters
     np.savetxt(fname, parametergrid)
