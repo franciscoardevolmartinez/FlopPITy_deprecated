@@ -121,6 +121,14 @@ print('Command line arguments: '+ str(args))
 device = args.device
 
 ### READ PARAMETERS
+
+def x2Ppoints(x, nTpoints):
+    logPpoint = np.empty(nTpoints)
+    logPpoint[0] = np.log10(Pmin) + np.log10(Pmax/Pmin) * (1- x^(1/nTpoints))
+    for i in range(1,nTpoints):
+        logPpoint[i] = log(Ppoint(i-1)) + log(Pmax/Ppoint(i-1)) * (1- x^(1/(N-i+1)))
+    
+
 inp = []
 with open(args.input, 'rb') as arcis_input:
     for lines in arcis_input:
@@ -134,14 +142,26 @@ prior_bounds=[]
 i=0
 while i<len(clean_in):
     if 'fitpar:keyword' in clean_in[i]:
-        parnames.append(clean_in[i][16:-1])
-        if clean_in[i+3]=='fitpar:log=.true.':
-            prior_bounds.append([np.log10(float(clean_in[i+1][11:].replace('d','e'))), np.log10(float(clean_in[i+2][11:].replace('d','e')))])
-        elif clean_in[i+3]=='fitpar:log=.false.':
-            prior_bounds.append([float(clean_in[i+1][11:].replace('d','e')), float(clean_in[i+2][11:].replace('d','e'))])
-        i+=4
+        if clean_in[i][16:-1] == 'tprofile':
+            nTpoints = int(clean_in[i+1][9:])
+            for j in range(nTpoints):
+                parnames.append('dTpoint00'+str(1+j))
+                prior_bounds.append([-4/7, 4/7])
+#            for k in range(nTpoints):
+#                parnames.append('Ppoint00'+str(1+k))
+            parnames.append('x')
+            i+=3
+        else:
+            parnames.append(clean_in[i][16:-1])
+            if clean_in[i+3]=='fitpar:log=.true.':
+                prior_bounds.append([np.log10(float(clean_in[i+1][11:].replace('d','e'))), np.log10(float(clean_in[i+2][11:].replace('d','e')))])
+            elif clean_in[i+3]=='fitpar:log=.false.':
+                prior_bounds.append([float(clean_in[i+1][11:].replace('d','e')), float(clean_in[i+2][11:].replace('d','e'))])
+            i+=4
     else:
         i+=1
+
+print(parnames)
 
 prior_bounds=np.array(prior_bounds)
         
