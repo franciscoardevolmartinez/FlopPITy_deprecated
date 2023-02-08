@@ -83,11 +83,11 @@ def evidence(posterior, prior, samples, Y, obs, err):
     for j in range(len(samples)):
         L[j] = likelihood(obs, err, samples[j])
     default_x = xscaler.transform(obs.reshape(1,-1))
-    P = posterior.log_prob(Y, x=default_x)
-    pi = prior.log_prob(Y)
-    logZ[i] = np.median(-(P-pi-L).detach().numpy())
-    logZp1[i] = np.percentile(-(P-pi-L).detach().numpy(), 84)
-    logZm1[i] = np.percentile(-(P-pi-L).detach().numpy(), 16)
+    P = posterior.log_prob(torch.tensor(Y), x=default_x)
+    pi = prior.log_prob(torch.tensor(Y))
+    logZ = np.median(-(P-pi-L).detach().numpy())
+    logZp1 = np.percentile(-(P-pi-L).detach().numpy(), 84)
+    logZm1 = np.percentile(-(P-pi-L).detach().numpy(), 16)
     return logZ, logZp1, logZm1
 
 ### Embedding network
