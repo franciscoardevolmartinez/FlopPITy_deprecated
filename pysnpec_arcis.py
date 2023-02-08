@@ -270,18 +270,7 @@ logZm1s = []
 for r in range(num_rounds):
     print('\n')
     print('\n **** Training round ', r)
-    logging.info('Round '+str(r))
-    
-    if r>0:
-        logZ, logZp1, logZm1 = evidence(posteriors[-1], prior, arcis_spec, np_theta, obs_spec, noise_spec)
-        logZs.append(logZ)
-        logZp1s.append(logZp1)
-        logZm1s.append(logZm1)
-        print('ln (Z) = ', round(logZ, 2))
-        
-    if r>1 and (logZs[-1]-logZs[-2]<args.Ztol) and (logZs[-2]-logZs[-3]<args.Ztol):
-        break
-        
+    logging.info('Round '+str(r))        
     
     if args.reuse_prior_samples and r==0:
         print('Reusing '+str(samples_per_round[0])+' prior samples from '+ args.samples_dir)
@@ -364,7 +353,19 @@ for r in range(num_rounds):
             np.save(file_arcis_spec, arcis_spec)
         with open(args.output+'/Y_round_'+str(r)+'.npy', 'wb') as file_np_theta:
             np.save(file_np_theta, np_theta)
-     
+    
+    logZ, logZp1, logZm1 = evidence(posteriors[-1], prior, arcis_spec, np_theta, obs_spec, noise_spec)
+    logZs.append(logZ)
+    logZp1s.append(logZp1)
+    logZm1s.append(logZm1)
+    print('\n')
+    print('ln (Z) = ', round(logZ, 2))
+    print('\n')
+    
+    if r>1 and (logZs[-1]-logZs[-2]<args.Ztol) and (logZs[-2]-logZs[-3]<args.Ztol):
+        num_rounds=r-1
+        break
+    
     theta = torch.tensor(np.repeat(np_theta, args.naug, axis=0), dtype=torch.float32, device=device)
     arcis_spec_aug = np.repeat(arcis_spec, args.naug, axis=0) + noise_spec*np.random.randn(samples_per_round[r]*args.naug, obs_spec.shape[0])
     
@@ -468,7 +469,7 @@ with open(args.output+'/post_equal_weights.txt', 'wb') as file_post_equal_weight
     np.savetxt(file_post_equal_weights, samples[-1])
 
 fig1 = corner(samples[-1], color='rebeccapurple', show_titles=True, smooth=0.9, range=prior_bounds, labels=parnames)
-with open(args.output+'corner_'+str(r)+'.jpg', 'wb') as file_post_equal_corner:
+with open(args.output+'corner_'+str(r+1)+'.jpg', 'wb') as file_post_equal_corner:
     plt.savefig(file_post_equal_corner, bbox_inches='tight')
 plt.close('all')
 
