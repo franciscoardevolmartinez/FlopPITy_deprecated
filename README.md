@@ -2,7 +2,7 @@
  Multiround eXoplanet sBI
 
 ## Requirements
-[ARCiS](https://github.com/michielmin/ARCiS): Contact Michiel Min.
+[ARCiS](https://github.com/michielmin/ARCiS): Contact [Michiel Min](mailto:m.min@sron.nl).
 
 The following python packages are needed:
 - [`numpy`](https://numpy.org/install/)
@@ -19,7 +19,7 @@ Inference stops when the evidence changes by less than a certain tolerance, or w
 
 Here's a brief description of some of the most important options:
 - `device`: Used to specify the device on which the flows are trained. Can be `cpu` or `gpu`. Default: `cpu`.
-- `embedding`: Switches on a neural network (called embedding network) to reduce the dimensionality of the data.
+- `embedding`: Switches on a neural network (called embedding network) to reduce the dimensionality of the data. Off by default.
 - `embed_size`: The size of the embedding network's output.
 - `Ztol`: Specifies the maximum change in log(Z) to stop inference. For parameter estimation, large values (e.g. 10, set by default) are fine. For model comparison, it should be <1.
 - `processes`: The number of parallel instances of ARCiS running to compute the training set. Can be used to speed up the inference if multiple cores are available.
