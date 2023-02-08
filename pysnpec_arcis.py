@@ -21,7 +21,6 @@ from sbi.inference import SNPE,SNRE, prepare_for_sbi, simulate_for_sbi
 from sbi.utils.get_nn_models import posterior_nn
 from sbi import utils as utils
 from sbi import analysis as analysis
-# import ultranest
 from sbi.inference import SNPE_C, SNLE_A, SNRE_B
 from time import time
 import logging
@@ -360,7 +359,7 @@ for r in range(num_rounds):
         print('ln (Z) = ', round(logZ, 2))
         print('\n')
     
-    if r>2 and abs(logZs[-1]-logZs[-2])<args.Ztol and abs(logZs[-2]-logZs[-3])<args.Ztol:
+    if r>2 and abs(logZs[-1]-logZs[-2])<args.Ztol:
         num_rounds=r-1
         break
     
