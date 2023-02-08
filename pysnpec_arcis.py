@@ -353,14 +353,14 @@ for r in range(num_rounds):
             np.save(file_arcis_spec, arcis_spec)
         with open(args.output+'/Y_round_'+str(r)+'.npy', 'wb') as file_np_theta:
             np.save(file_np_theta, np_theta)
-    
-    logZ, logZp1, logZm1 = evidence(posteriors[-1], prior, arcis_spec, np_theta, obs_spec, noise_spec)
-    logZs.append(logZ)
-    logZp1s.append(logZp1)
-    logZm1s.append(logZm1)
-    print('\n')
-    print('ln (Z) = ', round(logZ, 2))
-    print('\n')
+    if r>0:
+        logZ, logZp1, logZm1 = evidence(posteriors[-1], prior, arcis_spec, np_theta, obs_spec, noise_spec)
+        logZs.append(logZ)
+        logZp1s.append(logZp1)
+        logZm1s.append(logZm1)
+        print('\n')
+        print('ln (Z) = ', round(logZ, 2))
+        print('\n')
     
     if r>1 and (logZs[-1]-logZs[-2]<args.Ztol) and (logZs[-2]-logZs[-3]<args.Ztol):
         num_rounds=r-1
