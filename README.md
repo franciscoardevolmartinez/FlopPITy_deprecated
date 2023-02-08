@@ -1,4 +1,4 @@
-# MulteXBI
+# Exoflows
  Multiround eXoplanet sBI
 
 ## Requirements
