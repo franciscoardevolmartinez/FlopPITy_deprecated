@@ -78,12 +78,12 @@ def likelihood(obs, err, x):
         L += -np.log(np.sqrt(2*np.pi)*err[i]) + (-(obs[i]-x[i])**2/(2*err[i]**2))
     return L
 
-def evidence(samples, Y, obs, err):
+def evidence(posterior, prior, samples, Y, obs, err):
     L = np.empty(len(samples))
     for j in range(len(samples)):
         L[j] = likelihood(obs, err, samples[j])
     default_x = xscaler.transform(obs.reshape(1,-1))
-    P = final.log_prob(Y, x=default_x)
+    P = posterior.log_prob(Y, x=default_x)
     pi = prior.log_prob(Y)
     logZ[i] = np.median(-(P-pi-L).detach().numpy())
     logZp1[i] = np.percentile(-(P-pi-L).detach().numpy(), 84)
@@ -273,7 +273,7 @@ for r in range(num_rounds):
     logging.info('Round '+str(r))
     
     if r>0:
-        logZ, logZp1, logZm1 = evidence(arcis_spec, np_theta, obs_spec, noise_spec)
+        logZ, logZp1, logZm1 = evidence(posteriors[-1], prior, arcis_spec, np_theta, obs_spec, noise_spec)
         logZs.append(logZ)
         logZp1s.append(logZp1)
         logZm1s.append(logZm1)
