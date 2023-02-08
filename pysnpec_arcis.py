@@ -362,7 +362,7 @@ for r in range(num_rounds):
         print('ln (Z) = ', round(logZ, 2))
         print('\n')
     
-    if r>1 and (logZs[-1]-logZs[-2]<args.Ztol) and (logZs[-2]-logZs[-3]<args.Ztol):
+    if r>2 and (logZs[-1]-logZs[-2]<args.Ztol) and (logZs[-2]-logZs[-3]<args.Ztol):
         num_rounds=r-1
         break
     
