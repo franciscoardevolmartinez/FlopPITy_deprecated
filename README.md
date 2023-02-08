@@ -1,5 +1,5 @@
 # exoFlows
- Multiround eXoplanet sBI
+Allows the user to easily train normalizing flows in multiple rounds to perform inference. Specifically written to work in conjunction with ARCiS.
 
 ## Requirements
 [ARCiS](https://github.com/michielmin/ARCiS): Contact [Michiel Min](mailto:m.min@sron.nl).
@@ -23,3 +23,6 @@ Here's a brief description of some of the most important options:
 - `embed_size`: The size of the embedding network's output.
 - `Ztol`: Specifies the maximum change in log(Z) to stop inference. For parameter estimation, large values (e.g. 10, set by default) are fine. For model comparison, it should be <1.
 - `processes`: The number of parallel instances of ARCiS running to compute the training set. Can be used to speed up the inference if multiple cores are available.
+
+### Output
+
