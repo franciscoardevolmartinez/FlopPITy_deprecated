@@ -32,8 +32,6 @@ import matplotlib.pyplot as plt
 from corner import corner
 from multiprocessing import Process, Pool
 from simulator import simulator
-from spectres import spectres
-#import pywhatkit
 
 supertic = time()
 
@@ -47,17 +45,17 @@ def parse_args():
     parser.add_argument('-device', type=str, default='cpu', help='Device to use for training. Default: CPU.')
     parser.add_argument('-num_rounds', type=int, default=10, help='Number of rounds to train for. Default: 10.')
     parser.add_argument('-samples_per_round', type=str, default='1000', help='Number of samples to draw for training each round. Default: 1000.')
-    parser.add_argument('-hidden', type=int, default=50)
+    parser.add_argument('-hidden', type=int, default=64)
     parser.add_argument('-do_pca', action='store_true')
     parser.add_argument('-n_pca', type=int, default=50)
-    parser.add_argument('-transforms', type=int, default=5)
-    parser.add_argument('-bins', type=int, default=5)
-    parser.add_argument('-blocks', type=int, default=2)
+    parser.add_argument('-transforms', type=int, default=10)
+    parser.add_argument('-bins', type=int, default=8)
+    parser.add_argument('-blocks', type=int, default=3)
     parser.add_argument('-embed_size', type=int, default=64)
     parser.add_argument('-embedding', action='store_true')
-    parser.add_argument('-ynorm', action='store_true')
-    parser.add_argument('-xnorm', action='store_true')
-    parser.add_argument('-Ztol', type=float, default=0.5)
+    parser.add_argument('-ynorm', action='store_false')
+    parser.add_argument('-xnorm', action='store_false')
+    parser.add_argument('-Ztol', type=float, default=10)
     parser.add_argument('-discard_prior_samples', action='store_true')
     parser.add_argument('-combined', action='store_true')
     parser.add_argument('-naug', type=int, default=5)
