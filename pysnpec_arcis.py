@@ -57,6 +57,7 @@ def parse_args():
     parser.add_argument('-embedding', action='store_true')
     parser.add_argument('-ynorm', action='store_true')
     parser.add_argument('-xnorm', action='store_true')
+    parser.add_argument('-Ztol', type=float, default=0.5)
     parser.add_argument('-discard_prior_samples', action='store_true')
     parser.add_argument('-combined', action='store_true')
     parser.add_argument('-naug', type=int, default=5)
@@ -69,6 +70,25 @@ def parse_args():
     parser.add_argument('-reuse_prior_samples', action='store_true')
     parser.add_argument('-samples_dir', type=str)
     return parser.parse_args()
+
+### (Log) likelihood. Necessary to compute (log) evidence
+def likelihood(obs, err, x):
+    L = 0
+    for i in range(len(obs)):
+        L += -np.log(np.sqrt(2*np.pi)*err[i]) + (-(obs[i]-x[i])**2/(2*err[i]**2))
+    return L
+
+def evidence(samples, Y, obs, err):
+    L = np.empty(len(samples))
+    for j in range(len(samples)):
+        L[j] = likelihood(obs, err, samples[j])
+    default_x = xscaler.transform(obs.reshape(1,-1))
+    P = final.log_prob(Y, x=default_x)
+    pi = prior.log_prob(Y)
+    logZ[i] = np.median(-(P-pi-L).detach().numpy())
+    logZp1[i] = np.percentile(-(P-pi-L).detach().numpy(), 84)
+    logZm1[i] = np.percentile(-(P-pi-L).detach().numpy(), 16)
+    return logZ, logZp1, logZm1
 
 ### Embedding network
 class SummaryNet(nn.Module):
@@ -119,6 +139,10 @@ logging.info('Command line arguments: '+ str(args))
 print('Command line arguments: '+ str(args))
 
 device = args.device
+
+os.system('cp '+args.input + ' '+args.output+'input_arcis.dat')
+
+args.input = args.output+'input_arcis.dat'
 
 ### READ PARAMETERS
 inp = []
@@ -239,10 +263,25 @@ logging.info('Training multi-round inference')
 proposal=prior
 posteriors=[]
 
+logZs = []
+logZp1s = []
+logZm1s = []
+
 for r in range(num_rounds):
     print('\n')
     print('\n **** Training round ', r)
     logging.info('Round '+str(r))
+    
+    if r>0:
+        logZ, logZp1, logZm1 = evidence(arcis_spec, np_theta, obs_spec, noise_spec)
+        logZs.append(logZ)
+        logZp1s.append(logZp1)
+        logZm1s.append(logZm1)
+        print('ln (Z) = ', round(logZ, 2))
+        
+    if r>1 and (logZs[-1]-logZs[-2]<args.Ztol) and (logZs[-2]-logZs[-3]<args.Ztol):
+        break
+        
     
     if args.reuse_prior_samples and r==0:
         print('Reusing '+str(samples_per_round[0])+' prior samples from '+ args.samples_dir)
@@ -278,14 +317,18 @@ for r in range(num_rounds):
                 params=yscaler.inverse_transform(np_theta)
             else:
                 params = np_theta
-                            
-            for i in range(args.processes-1):
-                parargs.append((params[i*samples_per_process:(i+1)*samples_per_process], args.output, r, args.input, freeT, nTpoints, i, len(obs), len(obs_spec)))
-            parargs.append((params[(args.processes-1)*samples_per_process:], args.output, r, args.input, freeT, nTpoints, args.processes-1, len(obs), len(obs_spec)))
+            if freeT:
+                for i in range(args.processes-1):
+                    parargs.append((params[i*samples_per_process:(i+1)*samples_per_process], args.output, r, args.input, freeT, nTpoints, i, len(obs), len(obs_spec)))
+                parargs.append((params[(args.processes-1)*samples_per_process:], args.output, r, args.input, freeT, nTpoints, args.processes-1, len(obs), len(obs_spec)))
+            else:
+                for i in range(args.processes-1):
+                    parargs.append((params[i*samples_per_process:(i+1)*samples_per_process], args.output, r, args.input, freeT, 0, i, len(obs), len(obs_spec)))
+                parargs.append((params[(args.processes-1)*samples_per_process:], args.output, r, args.input, freeT, 0, args.processes-1, len(obs), len(obs_spec)))
 
             tic=time()
-            pool = Pool(processes = args.processes)
-            arcis_specs = pool.starmap(simulator, parargs)
+            with Pool(processes = args.processes) as pool:
+                arcis_specs = pool.starmap(simulator, parargs)
             arcis_spec = np.concatenate(arcis_specs)
             print('Time elapsed: ', time()-tic)
             logging.info(('Time elapsed: ', time()-tic))
@@ -415,6 +458,7 @@ for j in range(num_rounds):
     else:
         samples.append(tsamples.cpu().detach().numpy())
 
+# Is this actually necessary??
 print('Saving samples ')
 logging.info('Saving samples ')
 with open(args.output+'/samples.p', 'wb') as file_samples:
