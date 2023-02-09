@@ -25,4 +25,14 @@ Here's a brief description of some of the most important options:
 - `processes`: The number of parallel instances of ARCiS running to compute the training set. Can be used to speed up the inference if multiple cores are available.
 
 ### Output
+exoFlows produces a lot of output files:
 
+- `post_equal_weights.txt`: File containing 10,000 posterior points.
+- `arcis_spec_round_XX.npy`: `numpy` arrays containing the forward models for the XXth round. If there are multiple observations, the modeled spectra for the different observations are concatenated one after the other, so the shape of the arrays is `[number of models per round, total number of wavelength bins]`.
+- `Y_round_XX.npy`: `numpy` arrays containing the parameters (normalized) used to compute the forward models for the XXth round.
+- `P.npy`: `numpy` array containing the pressure levels of the model.
+- `T_round_XX.npy`: `numpy` arrays containing the temperature structure for all forward models in round XX.
+- `samples.p`: `pickle` file containing 10,000 samples from the posterior computed at each round.
+- `posteriors.pt`: File containing the `torch` distributions for the posterior predicted at every round. Useful to sample and obtain log(P) for any point.
+- `xscaler.p`: `pickle` file containing the normalizing class for the spectra.
+- `yscaler.p`: `pickle` file containing the normalizing class for the parameters.
