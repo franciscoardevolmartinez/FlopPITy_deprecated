@@ -84,8 +84,8 @@ def evidence(posterior, prior, samples, Y, obs, err):
     pi = prior.log_prob(torch.tensor(Y))
     logZ =np.empty(3)
     logZ[0] = np.median(-(P-pi-L).detach().numpy())
-    logZ[1] = np.percentile(-(P-pi-L).detach().numpy(), 84)
-    logZ[2] = np.percentile(-(P-pi-L).detach().numpy(), 16)
+    logZ[2] = np.percentile(-(P-pi-L).detach().numpy(), 84)
+    logZ[1] = np.percentile(-(P-pi-L).detach().numpy(), 16)
     return logZ
 
 ### Embedding network
@@ -355,7 +355,7 @@ for r in range(num_rounds):
         logZ = evidence(posteriors[-1], prior, arcis_spec, np_theta, obs_spec, noise_spec)
         logZs.append(logZ)
         print('\n')
-        print('ln (Z) = '+ str(round(logZ[0], 2))+' +'+str(round(logZ[1],2))+'/ -'+str(round(logZ[2],2)))
+        print('ln (Z) = '+ str(round(logZ[0], 2))+' ('+str(round(logZ[1],2))+', '+str(round(logZ[2],2))+')')
         print('\n')
     
     theta = torch.tensor(np.repeat(np_theta, args.naug, axis=0), dtype=torch.float32, device=device)
