@@ -57,10 +57,10 @@ def parse_args():
     parser.add_argument('-Ztol', type=float, default=10)
     parser.add_argument('-discard_prior_samples', action='store_true')
     parser.add_argument('-combined', action='store_true')
-    parser.add_argument('-naug', type=int, default=5)
+    parser.add_argument('-naug', type=int, default=1)
     parser.add_argument('-processes', type=int, default=1)
     parser.add_argument('-retrain_from_scratch', action='store_true')
-    parser.add_argument('-patience', type=int, default=20)
+    parser.add_argument('-patience', type=int, default=10)
     parser.add_argument('-atoms', type=int, default=10)
     parser.add_argument('-method', type=str, default='snpe')
     parser.add_argument('-sample_with', type=str, default='rejection')
@@ -82,10 +82,11 @@ def evidence(posterior, prior, samples, Y, obs, err):
     default_x = xscaler.transform(obs.reshape(1,-1))
     P = posterior.log_prob(torch.tensor(Y), x=default_x)
     pi = prior.log_prob(torch.tensor(Y))
-    logZ = np.median(-(P-pi-L).detach().numpy())
-    logZp1 = np.percentile(-(P-pi-L).detach().numpy(), 84)
-    logZm1 = np.percentile(-(P-pi-L).detach().numpy(), 16)
-    return logZ, logZp1, logZm1
+    logZ =np.empty(3)
+    logZ[0] = np.median(-(P-pi-L).detach().numpy())
+    logZ[1] = np.percentile(-(P-pi-L).detach().numpy(), 84)
+    logZ[2] = np.percentile(-(P-pi-L).detach().numpy(), 16)
+    return logZ
 
 ### Embedding network
 class SummaryNet(nn.Module):
@@ -351,17 +352,11 @@ for r in range(num_rounds):
         with open(args.output+'/Y_round_'+str(r)+'.npy', 'wb') as file_np_theta:
             np.save(file_np_theta, np_theta)
     if r>0:
-        logZ, logZp1, logZm1 = evidence(posteriors[-1], prior, arcis_spec, np_theta, obs_spec, noise_spec)
+        logZ = evidence(posteriors[-1], prior, arcis_spec, np_theta, obs_spec, noise_spec)
         logZs.append(logZ)
-        logZp1s.append(logZp1)
-        logZm1s.append(logZm1)
         print('\n')
-        print('ln (Z) = ', round(logZ, 2))
+        print('ln (Z) = '+ str(round(logZ[0], 2))+' +'+str(round(logZ[1],2))+'/ -'+str(round(logZ[2],2)))
         print('\n')
-    
-    if r>2 and abs(logZs[-1]-logZs[-2])<args.Ztol:
-        num_rounds=r-1
-        break
     
     theta = torch.tensor(np.repeat(np_theta, args.naug, axis=0), dtype=torch.float32, device=device)
     arcis_spec_aug = np.repeat(arcis_spec, args.naug, axis=0) + noise_spec*np.random.randn(samples_per_round[r]*args.naug, obs_spec.shape[0])
@@ -442,6 +437,10 @@ for r in range(num_rounds):
     proposal = posterior.set_default_x(default_x)
             
     plt.close('all')
+    
+    if r>1 and abs(logZs[-1][0]-logZs[-2][0])<args.Ztol:
+        num_rounds=r-1
+        break
 
 print('Drawing samples ')
 logging.info('Drawing samples ')
@@ -464,6 +463,9 @@ with open(args.output+'/samples.p', 'wb') as file_samples:
 
 with open(args.output+'/post_equal_weights.txt', 'wb') as file_post_equal_weights:
     np.savetxt(file_post_equal_weights, samples[-1])
+
+with open(args.output+'/evidence.p', 'wb') as file_evidence:
+    pickle.dump(file_evidence, logZs)
 
 fig1 = corner(samples[-1], color='rebeccapurple', show_titles=True, smooth=0.9, range=prior_bounds, labels=parnames)
 with open(args.output+'corner_'+str(r+1)+'.jpg', 'wb') as file_post_equal_corner:
