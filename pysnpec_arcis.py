@@ -465,7 +465,7 @@ with open(args.output+'/post_equal_weights.txt', 'wb') as file_post_equal_weight
     np.savetxt(file_post_equal_weights, samples[-1])
 
 with open(args.output+'/evidence.p', 'wb') as file_evidence:
-    pickle.dump(file_evidence, logZs)
+    pickle.dump(logZs, file_evidence)
 
 fig1 = corner(samples[-1], color='rebeccapurple', show_titles=True, smooth=0.9, range=prior_bounds, labels=parnames)
 with open(args.output+'corner_'+str(r+1)+'.jpg', 'wb') as file_post_equal_corner:
