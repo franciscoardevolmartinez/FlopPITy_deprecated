@@ -358,6 +358,8 @@ for r in range(num_rounds):
         print('ln (Z) = '+ str(round(logZ[0], 2))+' ('+str(round(logZ[1],2))+', '+str(round(logZ[2],2))+')')
         logging.info('ln (Z) = '+ str(round(logZ[0], 2))+' ('+str(round(logZ[1],2))+', '+str(round(logZ[2],2))+')')
         print('\n')
+        with open(args.output+'/evidence.p', 'wb') as file_evidence:
+            pickle.dump(logZs, file_evidence)
     
     theta = torch.tensor(np.repeat(np_theta, args.naug, axis=0), dtype=torch.float32, device=device)
     arcis_spec_aug = np.repeat(arcis_spec, args.naug, axis=0) + noise_spec*np.random.randn(samples_per_round[r]*args.naug, obs_spec.shape[0])
@@ -464,9 +466,6 @@ with open(args.output+'/samples.p', 'wb') as file_samples:
 
 with open(args.output+'/post_equal_weights.txt', 'wb') as file_post_equal_weights:
     np.savetxt(file_post_equal_weights, samples[-1])
-
-with open(args.output+'/evidence.p', 'wb') as file_evidence:
-    pickle.dump(logZs, file_evidence)
 
 fig1 = corner(samples[-1], color='rebeccapurple', show_titles=True, smooth=0.9, range=prior_bounds, labels=parnames)
 with open(args.output+'corner_'+str(r+1)+'.jpg', 'wb') as file_post_equal_corner:
