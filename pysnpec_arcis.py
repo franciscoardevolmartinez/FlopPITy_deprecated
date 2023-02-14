@@ -125,6 +125,34 @@ work_dir = os.getcwd()+'/'
 
 args = parse_args()
 
+### COMPUTE FORWARD MODELS FROM NORMALISED PARAMETERS
+def compute(np_theta):
+            samples_per_process = len(np_theta)//args.processes
+
+            print('Samples per process: ', samples_per_process)
+
+            parargs=[]
+            if args.ynorm:
+                params=yscaler.inverse_transform(np_theta)
+            else:
+                params = np_theta
+            if freeT:
+                for i in range(args.processes-1):
+                    parargs.append((params[i*samples_per_process:(i+1)*samples_per_process], args.output, r, args.input, freeT, nTpoints, i, len(obs), len(obs_spec)))
+                parargs.append((params[(args.processes-1)*samples_per_process:], args.output, r, args.input, freeT, nTpoints, args.processes-1, len(obs), len(obs_spec)))
+            else:
+                for i in range(args.processes-1):
+                    parargs.append((params[i*samples_per_process:(i+1)*samples_per_process], args.output, r, args.input, freeT, 0, i, len(obs), len(obs_spec)))
+                parargs.append((params[(args.processes-1)*samples_per_process:], args.output, r, args.input, freeT, 0, args.processes-1, len(obs), len(obs_spec)))
+
+            tic=time()
+            with Pool(processes = args.processes) as pool:
+                arcis_specs = pool.starmap(simulator, parargs)
+            arcis_spec = np.concatenate(arcis_specs)
+            print('Time elapsed: ', time()-tic)
+            logging.info(('Time elapsed: ', time()-tic))
+            return arcis_spec
+
 p = Path(args.output)
 p.mkdir(parents=True, exist_ok=True)
 
@@ -209,6 +237,44 @@ for j in range(len(obs)):
 
 embedding_net = SummaryNet(obs_spec.shape[0], args.embed_size)
 
+### Preprocessing for spectra and parameters
+def preprocess(np_theta, arcis_spec):
+    theta_aug = torch.tensor(np.repeat(np_theta, args.naug, axis=0), dtype=torch.float32, device=device)
+    arcis_spec_aug = np.repeat(arcis_spec, args.naug, axis=0) + noise_spec*np.random.randn(samples_per_round[0]*args.naug, obs_spec.shape[0])
+    global xscaler
+    if r==0:
+        ## Fit PCA and xscaler with samples from prior only
+        if args.do_pca:
+            print('Fitting PCA...')
+            logging.info('Fitting PCA...')
+            pca = PCA(n_components=args.n_pca)
+            pca.fit(arcis_spec)
+            with open(args.output+'/pca.p', 'wb') as file_pca:
+                pickle.dump(pca, file_pca)
+            if args.xnorm:
+                xscaler = StandardScaler().fit(pca.transform(arcis_spec))
+                with open(args.output+'/xscaler.p', 'wb') as file_xscaler:
+                    pickle.dump(xscaler, file_xscaler)
+        elif args.xnorm:
+            xscaler = StandardScaler().fit(arcis_spec)
+            with open(args.output+'/xscaler.p', 'wb') as file_xscaler:
+                pickle.dump(xscaler, file_xscaler)
+
+    if args.do_pca:
+        x_i = pca_trans.transform(arcis_spec_aug)
+        if args.xnorm:
+            x_f = xscaler.transform(x_i)
+        else:
+            x_f = x_i
+    elif args.xnorm:
+        x_f = xscaler.transform(arcis_spec_aug)
+    else:
+        x_f = arcis_spec_aug
+
+    x = torch.tensor(x_f, dtype=torch.float32, device=device)
+
+    return theta_aug, x
+
 ### TRANSFORM PRIOR
 if args.ynorm:
     yscaler = Normalizer(prior_bounds)
@@ -265,6 +331,9 @@ logZs = []
 logZp1s = []
 logZm1s = []
 
+np_theta = {}
+arcis_spec = {}
+
 r=0
 
 while r<num_rounds:
@@ -282,12 +351,12 @@ while r<num_rounds:
         logging.info('Drawing '+str(samples_per_round[r])+' samples')
         print('Samples per round: ', samples_per_round[r])
         theta = proposal.sample((samples_per_round[r],))
-        np_theta = theta.cpu().detach().numpy().reshape([-1, len(prior_bounds)])
+        np_theta[r] = theta.cpu().detach().numpy().reshape([-1, len(prior_bounds)])
                 
         if args.ynorm:
-            post_plot = yscaler.inverse_transform(np_theta)
+            post_plot = yscaler.inverse_transform(np_theta[r])
         else:
-            post_plot = np_theta
+            post_plot = np_theta[r]
         
         fig1 = corner(post_plot, color='rebeccapurple', show_titles=True, smooth=0.9, range=prior_bounds, labels=parnames)
         with open(args.output+'corner_'+str(r)+'.jpg', 'wb') as file_corner:
@@ -295,173 +364,116 @@ while r<num_rounds:
         plt.close('all')
                 
         #### COMPUTE MODELS
-        
-        def compute(np_theta):
-            samples_per_process = len(np_theta)//args.processes
-
-            print('Samples per process: ', samples_per_process)
-
-            parargs=[]
-            if args.ynorm:
-                params=yscaler.inverse_transform(np_theta)
-            else:
-                params = np_theta
-            if freeT:
-                for i in range(args.processes-1):
-                    parargs.append((params[i*samples_per_process:(i+1)*samples_per_process], args.output, r, args.input, freeT, nTpoints, i, len(obs), len(obs_spec)))
-                parargs.append((params[(args.processes-1)*samples_per_process:], args.output, r, args.input, freeT, nTpoints, args.processes-1, len(obs), len(obs_spec)))
-            else:
-                for i in range(args.processes-1):
-                    parargs.append((params[i*samples_per_process:(i+1)*samples_per_process], args.output, r, args.input, freeT, 0, i, len(obs), len(obs_spec)))
-                parargs.append((params[(args.processes-1)*samples_per_process:], args.output, r, args.input, freeT, 0, args.processes-1, len(obs), len(obs_spec)))
-
-            tic=time()
-            with Pool(processes = args.processes) as pool:
-                arcis_specs = pool.starmap(simulator, parargs)
-            arcis_spec = np.concatenate(arcis_specs)
-            print('Time elapsed: ', time()-tic)
-            logging.info(('Time elapsed: ', time()-tic))
-            return arcis_spec
-        
-        arcis_spec = compute(np_theta)
+        arcis_spec[r] = compute(np_theta[r])
         
         for j in range(args.processes):
             os.system('rm -rf '+args.output + 'round_'+str(r)+str(j)+'_out/')
-                
-        sm = np.sum(arcis_spec, axis=1)
-
-        arcis_spec = arcis_spec[sm!=0]
-        
-        while len(arcis_spec)<samples_per_round[r]:
-            remain = samples_per_round[r]-len(arcis_spec)
-            print('ARCiS crashed, computing remaining ' +str(remain)+' models.')
-            logging.info('ARCiS crashed, computing remaining ' +str(remain)+' models.')
             
-            theta[len(arcis_spec):] = proposal.sample((remain,))
-            np_theta = theta.cpu().detach().numpy().reshape([-1, len(prior_bounds)])
-                        
-            arcis_spec_ac=compute(np_theta[len(arcis_spec):])
-                
-            for j in range(args.processes):
-                os.system('rm -rf '+args.output + 'round_'+str(r)+str(j)+'_out/')
-                            
-            sm_ac = np.sum(arcis_spec_ac, axis=1)
+        ''' 
+        THIS IS ONLY NECESSARY IN CASE ARCiS CRASHES, AT THE MOMENT THIS SEEMS UNDER CONTROL
+        # sm = np.sum(arcis_spec[r], axis=1)
 
-            arcis_spec = np.concatenate((arcis_spec, arcis_spec_ac[sm_ac!=0]))
+        # arcis_spec[r] = arcis_spec[r][sm!=0]
+        
+#         while len(arcis_spec)<samples_per_round[r]:
+#             remain = samples_per_round[r]-len(arcis_spec[r])
+#             print('ARCiS crashed, computing remaining ' +str(remain)+' models.')
+#             logging.info('ARCiS crashed, computing remaining ' +str(remain)+' models.')
+            
+#             theta[len(arcis_spec[r]):] = proposal.sample((remain,))
+#             np_theta[r] = theta.cpu().detach().numpy().reshape([-1, len(prior_bounds)])
+                        
+#             arcis_spec_ac=compute(np_theta[len(arcis_spec[r]):])
+                
+#             for j in range(args.processes):
+#                 os.system('rm -rf '+args.output + 'round_'+str(r)+str(j)+'_out/')
+                            
+#             sm_ac = np.sum(arcis_spec_ac, axis=1)
+
+#             arcis_spec[r] = np.concatenate((arcis_spec[r], arcis_spec_ac[sm_ac!=0]))
+       ''' 
         
         with open(args.output+'/arcis_spec_round_'+str(r)+'.npy', 'wb') as file_arcis_spec:
-            np.save(file_arcis_spec, arcis_spec)
+            np.save(file_arcis_spec, arcis_spec[r])
         with open(args.output+'/Y_round_'+str(r)+'.npy', 'wb') as file_np_theta:
-            np.save(file_np_theta, np_theta)
+            np.save(file_np_theta, np_theta[r])
             
     ### COMPUTE EVIDENCE
     if r>0:
-        logZ = evidence(posteriors[-1], prior, arcis_spec, np_theta, obs_spec, noise_spec)
-        logZs.append(logZ)
+        logZ = evidence(posteriors[-1], prior, arcis_spec[r], np_theta[r], obs_spec, noise_spec)
         print('\n')
         print('ln (Z) = '+ str(round(logZ[0], 2))+' ('+str(round(logZ[1],2))+', '+str(round(logZ[2],2))+')')
         logging.info('ln (Z) = '+ str(round(logZ[0], 2))+' ('+str(round(logZ[1],2))+', '+str(round(logZ[2],2))+')')
         print('\n')
-        with open(args.output+'/evidence.p', 'wb') as file_evidence:
-            pickle.dump(logZs, file_evidence)
         
     if r>1 and logZs[-1][0]<logZs[-2][0]:
         # If evidence doesn't improve we repeat last step
         print('Round rejected, repeating previous round')
         logging.info('Round rejected, repeating previous round')
-        r-=1
+        # r-=1
+        theta_aug, x = preprocess(np_theta[r-1], arcis_spec[r-1])
     else:
+        if r>0:
+            logZs.append(logZ)
+            with open(args.output+'/evidence.p', 'wb') as file_evidence:
+                pickle.dump(logZs, file_evidence)
         ### PREPROCESS DATA
-        theta = torch.tensor(np.repeat(np_theta, args.naug, axis=0), dtype=torch.float32, device=device)
-        arcis_spec_aug = np.repeat(arcis_spec, args.naug, axis=0) + noise_spec*np.random.randn(samples_per_round[r]*args.naug, obs_spec.shape[0])
+        theta_aug, x = preprocess(np_theta[r], arcis_spec[r])
+        r+=1
 
-        if r==0:
-            ## Fit PCA and xscaler with samples from prior only
-            if args.do_pca:
-                print('Fitting PCA...')
-                logging.info('Fitting PCA...')
-                pca = PCA(n_components=args.n_pca)
-                pca.fit(arcis_spec)
-                with open(args.output+'/pca.p', 'wb') as file_pca:
-                    pickle.dump(pca, file_pca)
-                if args.xnorm:
-                    xscaler = StandardScaler().fit(pca.transform(arcis_spec))
-                    with open(args.output+'/xscaler.p', 'wb') as file_xscaler:
-                        pickle.dump(xscaler, file_xscaler)
-            elif args.xnorm:
-                xscaler = StandardScaler().fit(arcis_spec)
-                with open(args.output+'/xscaler.p', 'wb') as file_xscaler:
-                    pickle.dump(xscaler, file_xscaler)
-
-        if args.do_pca:
-            x_i = pca_trans.transform(arcis_spec_aug)
-            if args.xnorm:
-                x_f = xscaler.transform(x_i)
-            else:
-                x_f = x_i
-        elif args.xnorm:
-            x_f = xscaler.transform(arcis_spec_aug)
-        else:
-            x_f = arcis_spec_aug
-
-        x = torch.tensor(x_f, dtype=torch.float32, device=device)
+    ### TRAIN
+    logging.info('Training...')
+    tic = time()
+    if args.method=='snpe':
+        density_estimator = inference.append_simulations(theta_aug, x, proposal=proposal).train(
+            discard_prior_samples=args.discard_prior_samples, use_combined_loss=args.combined, show_train_summary=True, 
+            stop_after_epochs=args.patience, num_atoms=args.atoms, retrain_from_scratch=False, 
+            force_first_round_loss=True)
+    elif args.method=='snle':
+        density_estimator = inference.append_simulations(theta_aug, x).train(
+            discard_prior_samples=args.discard_prior_samples, show_train_summary=True, 
+            stop_after_epochs=args.patience)
 
 
-        ### TRAIN
-        logging.info('Training...')
-        tic = time()
-        if args.method=='snpe':
-            density_estimator = inference.append_simulations(theta, x, proposal=proposal).train(
-                discard_prior_samples=args.discard_prior_samples, use_combined_loss=args.combined, show_train_summary=True, 
-                stop_after_epochs=args.patience, num_atoms=args.atoms, retrain_from_scratch=False, 
-                force_first_round_loss=True)
-        elif args.method=='snle':
-            density_estimator = inference.append_simulations(theta, x).train(
-                discard_prior_samples=args.discard_prior_samples, show_train_summary=True, 
-                stop_after_epochs=args.patience)
-
-
-        ### GENERATE POSTERIOR
-        print('\n Time elapsed: '+str(time()-tic))
-        logging.info('Time elapsed: '+str(time()-tic))
+    ### GENERATE POSTERIOR
+    print('\n Time elapsed: '+str(time()-tic))
+    logging.info('Time elapsed: '+str(time()-tic))
+    try:
+        posterior = inference.build_posterior(density_estimator, sample_with=args.sample_with)
+    except:
+        print('\n OH NO!, IT HAPPENED!')
+        logging.info('OH NO!, IT HAPPENED!')
         try:
             posterior = inference.build_posterior(density_estimator, sample_with=args.sample_with)
         except:
-            print('\n OH NO!, IT HAPPENED!')
-            logging.info('OH NO!, IT HAPPENED!')
-            try:
-                posterior = inference.build_posterior(density_estimator, sample_with=args.sample_with)
-            except:
-                print('\n OH NO!, IT HAPPENED *AGAIN*!?')
-                logging.info('OH NO!, IT HAPPENED *AGAIN*!?')
-                posterior = inference.build_posterior(density_estimator, sample_with=args.sample_with)
-        posteriors.append(posterior)
-        print('Saving posteriors ')
-        logging.info('Saving posteriors ')
-        with open(args.output+'/posteriors.pt', 'wb') as file_posteriors:
-            torch.save(posteriors, file_posteriors)
+            print('\n OH NO!, IT HAPPENED *AGAIN*!?')
+            logging.info('OH NO!, IT HAPPENED *AGAIN*!?')
+            posterior = inference.build_posterior(density_estimator, sample_with=args.sample_with)
+    posteriors.append(posterior)
+    print('Saving posteriors ')
+    logging.info('Saving posteriors ')
+    with open(args.output+'/posteriors.pt', 'wb') as file_posteriors:
+        torch.save(posteriors, file_posteriors)
 
-        if args.do_pca:
-            default_x_pca = pca.transform(obs_spec.reshape(1,-1))
-            if args.xnorm:
-                default_x = xscaler.transform(default_x_pca)
-            else:
-                default_x = default_x_pca
-        elif args.xnorm:
-            default_x = xscaler.transform(obs_spec.reshape(1,-1))
+    if args.do_pca:
+        default_x_pca = pca.transform(obs_spec.reshape(1,-1))
+        if args.xnorm:
+            default_x = xscaler.transform(default_x_pca)
         else:
-            default_x = obs_spec.reshape(1,-1)
+            default_x = default_x_pca
+    elif args.xnorm:
+        default_x = xscaler.transform(obs_spec.reshape(1,-1))
+    else:
+        default_x = obs_spec.reshape(1,-1)
 
-        proposal = posterior.set_default_x(default_x)
+    proposal = posterior.set_default_x(default_x)
 
-        plt.close('all')
+    plt.close('all')
 
-        ### CHECK CONVERGENCE
-        if r>1 and (logZs[-1][0]-logZs[-2][0])<args.Ztol:
-            num_rounds=r-1
-            break
-            
-        r+=1
+    ### CHECK CONVERGENCE
+    # if r>1 and (logZs[-1][0]-logZs[-2][0])<args.Ztol:
+    #     num_rounds=r-1
+    #     break
 
 
 ### FINISH OFF        
