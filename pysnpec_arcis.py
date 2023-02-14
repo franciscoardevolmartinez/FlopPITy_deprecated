@@ -412,10 +412,13 @@ while r<num_rounds:
         print('Round rejected, repeating previous round')
         logging.info('Round rejected, repeating previous round')
         # r-=1
+        logZs.pop(-1)
         theta_aug, x = preprocess(np_theta[r-1], arcis_spec[r-1])
     else:
         if r>0:
             with open(args.output+'/evidence.p', 'wb') as file_evidence:
+                print('Saving evidence...')
+                logging.info('Saving evidence...')
                 pickle.dump(logZs, file_evidence)
         ### PREPROCESS DATA
         theta_aug, x = preprocess(np_theta[r], arcis_spec[r])
@@ -471,16 +474,15 @@ while r<num_rounds:
     plt.close('all')
 
     ### CHECK CONVERGENCE
-    # if r>1 and (logZs[-1][0]-logZs[-2][0])<args.Ztol:
-    #     num_rounds=r-1
-    #     break
+    if r>1 and (logZs[-1][0]-logZs[-2][0])<args.Ztol:
+        break
 
 
 ### FINISH OFF        
 print('Drawing samples ')
 logging.info('Drawing samples ')
 samples = []
-for j in range(num_rounds):
+for j in range(len(posteriors)):
     print('Drawing samples from round ', j)
     logging.info('Drawing samples from round ' + str(j))
     posterior = posteriors[j]
