@@ -265,7 +265,9 @@ logZs = []
 logZp1s = []
 logZm1s = []
 
-for r in range(num_rounds):
+r=0
+
+while r<num_rounds:
     print('\n')
     print('\n **** Training round ', r)
     logging.info('Round '+str(r))        
@@ -276,7 +278,7 @@ for r in range(num_rounds):
         arcis_spec = np.load(args.samples_dir+'/arcis_spec_round_'+str(0)+'.npy')[:samples_per_round[0]]
         np_theta = np.load(args.samples_dir+'/Y_round_'+str(0)+'.npy')[:samples_per_round[0]]
     else:
-        ##### drawing samples and computing fwd models
+        ##### DRAW SAMPLES
         logging.info('Drawing '+str(samples_per_round[r])+' samples')
         print('Samples per round: ', samples_per_round[r])
         theta = proposal.sample((samples_per_round[r],))
@@ -292,7 +294,7 @@ for r in range(num_rounds):
             plt.savefig(file_corner, bbox_inches='tight')
         plt.close('all')
                 
-        # COMPUTE MODELS
+        #### COMPUTE MODELS
         
         def compute(np_theta):
             samples_per_process = len(np_theta)//args.processes
@@ -351,6 +353,8 @@ for r in range(num_rounds):
             np.save(file_arcis_spec, arcis_spec)
         with open(args.output+'/Y_round_'+str(r)+'.npy', 'wb') as file_np_theta:
             np.save(file_np_theta, np_theta)
+            
+    ### COMPUTE EVIDENCE
     if r>0:
         logZ = evidence(posteriors[-1], prior, arcis_spec, np_theta, obs_spec, noise_spec)
         logZs.append(logZ)
@@ -360,91 +364,107 @@ for r in range(num_rounds):
         print('\n')
         with open(args.output+'/evidence.p', 'wb') as file_evidence:
             pickle.dump(logZs, file_evidence)
-    
-    theta = torch.tensor(np.repeat(np_theta, args.naug, axis=0), dtype=torch.float32, device=device)
-    arcis_spec_aug = np.repeat(arcis_spec, args.naug, axis=0) + noise_spec*np.random.randn(samples_per_round[r]*args.naug, obs_spec.shape[0])
-    
-    if r==0:
-        ## Fit PCA and xscaler with samples from prior only
-        if args.do_pca:
-            print('Fitting PCA...')
-            logging.info('Fitting PCA...')
-            pca = PCA(n_components=args.n_pca)
-            pca.fit(arcis_spec)
-            with open(args.output+'/pca.p', 'wb') as file_pca:
-                pickle.dump(pca, file_pca)
-            if args.xnorm:
-                xscaler = StandardScaler().fit(pca.transform(arcis_spec))
+        
+    if r>1 and logZs[-1][0]<logZs[-2][0]:
+        # If evidence doesn't improve we repeat last step
+        print('Round rejected, repeating previous round')
+        logging.info('Round rejected, repeating previous round')
+        r-=1
+    else:
+        ### PREPROCESS DATA
+        theta = torch.tensor(np.repeat(np_theta, args.naug, axis=0), dtype=torch.float32, device=device)
+        arcis_spec_aug = np.repeat(arcis_spec, args.naug, axis=0) + noise_spec*np.random.randn(samples_per_round[r]*args.naug, obs_spec.shape[0])
+
+        if r==0:
+            ## Fit PCA and xscaler with samples from prior only
+            if args.do_pca:
+                print('Fitting PCA...')
+                logging.info('Fitting PCA...')
+                pca = PCA(n_components=args.n_pca)
+                pca.fit(arcis_spec)
+                with open(args.output+'/pca.p', 'wb') as file_pca:
+                    pickle.dump(pca, file_pca)
+                if args.xnorm:
+                    xscaler = StandardScaler().fit(pca.transform(arcis_spec))
+                    with open(args.output+'/xscaler.p', 'wb') as file_xscaler:
+                        pickle.dump(xscaler, file_xscaler)
+            elif args.xnorm:
+                xscaler = StandardScaler().fit(arcis_spec)
                 with open(args.output+'/xscaler.p', 'wb') as file_xscaler:
                     pickle.dump(xscaler, file_xscaler)
-        elif args.xnorm:
-            xscaler = StandardScaler().fit(arcis_spec)
-            with open(args.output+'/xscaler.p', 'wb') as file_xscaler:
-                pickle.dump(xscaler, file_xscaler)
-    
-    if args.do_pca:
-        x_i = pca_trans.transform(arcis_spec_aug)
-        if args.xnorm:
-            x_f = xscaler.transform(x_i)
-        else:
-            x_f = x_i
-    elif args.xnorm:
-        x_f = xscaler.transform(arcis_spec_aug)
-    else:
-        x_f = arcis_spec_aug
-            
-    x = torch.tensor(x_f, dtype=torch.float32, device=device)
-        
-    logging.info('Training...')
-    tic = time()
-    if args.method=='snpe':
-        density_estimator = inference.append_simulations(theta, x, proposal=proposal).train(
-            discard_prior_samples=args.discard_prior_samples, use_combined_loss=args.combined, show_train_summary=True, 
-            stop_after_epochs=args.patience, num_atoms=args.atoms, retrain_from_scratch=False, 
-            force_first_round_loss=True)
-    elif args.method=='snle':
-        density_estimator = inference.append_simulations(theta, x).train(
-            discard_prior_samples=args.discard_prior_samples, show_train_summary=True, 
-            stop_after_epochs=args.patience)
 
-    print('\n Time elapsed: '+str(time()-tic))
-    logging.info('Time elapsed: '+str(time()-tic))
-    try:
-        posterior = inference.build_posterior(density_estimator, sample_with=args.sample_with)
-    except:
-        print('\n OH NO!, IT HAPPENED!')
-        logging.info('OH NO!, IT HAPPENED!')
+        if args.do_pca:
+            x_i = pca_trans.transform(arcis_spec_aug)
+            if args.xnorm:
+                x_f = xscaler.transform(x_i)
+            else:
+                x_f = x_i
+        elif args.xnorm:
+            x_f = xscaler.transform(arcis_spec_aug)
+        else:
+            x_f = arcis_spec_aug
+
+        x = torch.tensor(x_f, dtype=torch.float32, device=device)
+
+
+        ### TRAIN
+        logging.info('Training...')
+        tic = time()
+        if args.method=='snpe':
+            density_estimator = inference.append_simulations(theta, x, proposal=proposal).train(
+                discard_prior_samples=args.discard_prior_samples, use_combined_loss=args.combined, show_train_summary=True, 
+                stop_after_epochs=args.patience, num_atoms=args.atoms, retrain_from_scratch=False, 
+                force_first_round_loss=True)
+        elif args.method=='snle':
+            density_estimator = inference.append_simulations(theta, x).train(
+                discard_prior_samples=args.discard_prior_samples, show_train_summary=True, 
+                stop_after_epochs=args.patience)
+
+
+        ### GENERATE POSTERIOR
+        print('\n Time elapsed: '+str(time()-tic))
+        logging.info('Time elapsed: '+str(time()-tic))
         try:
             posterior = inference.build_posterior(density_estimator, sample_with=args.sample_with)
         except:
-            print('\n OH NO!, IT HAPPENED *AGAIN*!?')
-            logging.info('OH NO!, IT HAPPENED *AGAIN*!?')
-            posterior = inference.build_posterior(density_estimator, sample_with=args.sample_with)
-    posteriors.append(posterior)
-    print('Saving posteriors ')
-    logging.info('Saving posteriors ')
-    with open(args.output+'/posteriors.pt', 'wb') as file_posteriors:
-        torch.save(posteriors, file_posteriors)
-    
-    if args.do_pca:
-        default_x_pca = pca.transform(obs_spec.reshape(1,-1))
-        if args.xnorm:
-            default_x = xscaler.transform(default_x_pca)
-        else:
-            default_x = default_x_pca
-    elif args.xnorm:
-        default_x = xscaler.transform(obs_spec.reshape(1,-1))
-    else:
-        default_x = obs_spec.reshape(1,-1)
-                        
-    proposal = posterior.set_default_x(default_x)
-            
-    plt.close('all')
-    
-    if r>1 and abs(logZs[-1][0]-logZs[-2][0])<args.Ztol:
-        num_rounds=r-1
-        break
+            print('\n OH NO!, IT HAPPENED!')
+            logging.info('OH NO!, IT HAPPENED!')
+            try:
+                posterior = inference.build_posterior(density_estimator, sample_with=args.sample_with)
+            except:
+                print('\n OH NO!, IT HAPPENED *AGAIN*!?')
+                logging.info('OH NO!, IT HAPPENED *AGAIN*!?')
+                posterior = inference.build_posterior(density_estimator, sample_with=args.sample_with)
+        posteriors.append(posterior)
+        print('Saving posteriors ')
+        logging.info('Saving posteriors ')
+        with open(args.output+'/posteriors.pt', 'wb') as file_posteriors:
+            torch.save(posteriors, file_posteriors)
 
+        if args.do_pca:
+            default_x_pca = pca.transform(obs_spec.reshape(1,-1))
+            if args.xnorm:
+                default_x = xscaler.transform(default_x_pca)
+            else:
+                default_x = default_x_pca
+        elif args.xnorm:
+            default_x = xscaler.transform(obs_spec.reshape(1,-1))
+        else:
+            default_x = obs_spec.reshape(1,-1)
+
+        proposal = posterior.set_default_x(default_x)
+
+        plt.close('all')
+
+        ### CHECK CONVERGENCE
+        if r>1 and (logZs[-1][0]-logZs[-2][0])<args.Ztol:
+            num_rounds=r-1
+            break
+            
+        r+=1
+
+
+### FINISH OFF        
 print('Drawing samples ')
 logging.info('Drawing samples ')
 samples = []
