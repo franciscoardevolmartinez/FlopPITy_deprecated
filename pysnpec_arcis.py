@@ -405,6 +405,7 @@ while r<num_rounds:
         print('ln (Z) = '+ str(round(logZ[0], 2))+' ('+str(round(logZ[1],2))+', '+str(round(logZ[2],2))+')')
         logging.info('ln (Z) = '+ str(round(logZ[0], 2))+' ('+str(round(logZ[1],2))+', '+str(round(logZ[2],2))+')')
         print('\n')
+        logZs.append(logZ)
         
     if r>1 and logZs[-1][0]<logZs[-2][0]:
         # If evidence doesn't improve we repeat last step
@@ -414,7 +415,6 @@ while r<num_rounds:
         theta_aug, x = preprocess(np_theta[r-1], arcis_spec[r-1])
     else:
         if r>0:
-            logZs.append(logZ)
             with open(args.output+'/evidence.p', 'wb') as file_evidence:
                 pickle.dump(logZs, file_evidence)
         ### PREPROCESS DATA
