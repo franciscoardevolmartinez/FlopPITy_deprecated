@@ -422,7 +422,10 @@ while r<num_rounds:
                 pickle.dump(logZs, file_evidence)
         ### PREPROCESS DATA
         theta_aug, x = preprocess(np_theta[r], arcis_spec[r])
-        r+=1
+        if r>1 and (logZs[-1][0]-logZs[-2][0])<args.Ztol:
+            r=num_rounds
+        else:
+            r+=1
 
     ### TRAIN
     logging.info('Training...')
@@ -472,10 +475,6 @@ while r<num_rounds:
     proposal = posterior.set_default_x(default_x)
 
     plt.close('all')
-
-    ### CHECK CONVERGENCE
-    if r>1 and (logZs[-1][0]-logZs[-2][0])<args.Ztol:
-        break
 
 
 ### FINISH OFF        
