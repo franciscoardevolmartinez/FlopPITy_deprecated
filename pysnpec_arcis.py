@@ -55,6 +55,7 @@ def parse_args():
     parser.add_argument('-ynorm', action='store_false')
     parser.add_argument('-xnorm', action='store_false')
     parser.add_argument('-Ztol', type=float, default=10)
+    parser.add_argument('-nrepeat', type=int, default=3)
     parser.add_argument('-discard_prior_samples', action='store_true')
     parser.add_argument('-combined', action='store_true')
     parser.add_argument('-naug', type=int, default=1)
@@ -327,6 +328,8 @@ logging.info('Training multi-round inference')
 proposal=prior
 posteriors=[]
 
+samples=[]
+
 logZs = []
 logZp1s = []
 logZm1s = []
@@ -335,6 +338,7 @@ np_theta = {}
 arcis_spec = {}
 
 r=0
+repeat=0
 
 while r<num_rounds:
     print('\n')
@@ -409,12 +413,17 @@ while r<num_rounds:
         
     if r>1 and logZs[-1][0]<logZs[-2][0]:
         # If evidence doesn't improve we repeat last step
-        print('Round rejected, repeating previous round')
-        logging.info('Round rejected, repeating previous round')
-        # r-=1
+        repeat=+1
+        print('Round rejected, repeating previous round. This round has been rejected '+str(repeat)+'times.')
+        logging.info('Round rejected, repeating previous round. This round has been rejected '+str(repeat)+'times.')
         logZs.pop(-1)
         theta_aug, x = preprocess(np_theta[r-1], arcis_spec[r-1])
+        if repeat>args.nrepeat:
+            print('This round has been repeated the maximum number of times. Ending inference.')
+            logging.info('This round has been repeated the maximum number of times. Ending inference.')
+            r=num_rounds
     else:
+        repeat=0
         if r>0:
             with open(args.output+'/evidence.p', 'wb') as file_evidence:
                 print('Saving evidence...')
@@ -473,29 +482,39 @@ while r<num_rounds:
         default_x = obs_spec.reshape(1,-1)
 
     proposal = posterior.set_default_x(default_x)
-
-    plt.close('all')
-
-
-### FINISH OFF        
-print('Drawing samples ')
-logging.info('Drawing samples ')
-samples = []
-for j in range(len(posteriors)):
-    print('Drawing samples from round ', j)
-    logging.info('Drawing samples from round ' + str(j))
-    posterior = posteriors[j]
+    
+    print('Saving samples ')
+    logging.info('Saving samples ')
     tsamples = posterior.sample((10000,), x=default_x, show_progress_bars=True)
     if args.ynorm:
         samples.append(yscaler.inverse_transform(tsamples.cpu().detach().numpy()))
     else:
         samples.append(tsamples.cpu().detach().numpy())
+        
+    with open(args.output+'/samples.p', 'wb') as file_samples:
+        pickle.dump(samples, file_samples)
 
-# Is this actually necessary??
-print('Saving samples ')
-logging.info('Saving samples ')
-with open(args.output+'/samples.p', 'wb') as file_samples:
-    pickle.dump(samples, file_samples)
+    plt.close('all')
+
+
+### FINISH OFF        
+# print('Drawing samples ')
+# logging.info('Drawing samples ')
+# for j in range(len(posteriors)):
+#     print('Drawing samples from round ', j)
+#     logging.info('Drawing samples from round ' + str(j))
+#     posterior = posteriors[j]
+#     tsamples = posterior.sample((10000,), x=default_x, show_progress_bars=True)
+#     if args.ynorm:
+#         samples.append(yscaler.inverse_transform(tsamples.cpu().detach().numpy()))
+#     else:
+#         samples.append(tsamples.cpu().detach().numpy())
+
+# # Is this actually necessary??
+# print('Saving samples ')
+# logging.info('Saving samples ')
+# with open(args.output+'/samples.p', 'wb') as file_samples:
+#     pickle.dump(samples, file_samples)
 
 with open(args.output+'/post_equal_weights.txt', 'wb') as file_post_equal_weights:
     np.savetxt(file_post_equal_weights, samples[-1])
@@ -505,5 +524,6 @@ with open(args.output+'corner_'+str(r+1)+'.jpg', 'wb') as file_post_equal_corner
     plt.savefig(file_post_equal_corner, bbox_inches='tight')
 plt.close('all')
 
+print('\n')
 print('Time elapsed: ', time()-supertic)
 logging.info('Time elapsed: '+str(time()-supertic))
