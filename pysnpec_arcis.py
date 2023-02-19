@@ -80,7 +80,10 @@ def evidence(posterior, prior, samples, Y, obs, err):
     L = np.empty(len(samples))
     for j in range(len(samples)):
         L[j] = likelihood(obs, err, samples[j])
-    default_x = xscaler.transform(obs.reshape(1,-1))
+    if args.do_pca:
+        default_x = xscaler.transform(pca.transform(obs.reshape(1,-1)))
+    else:
+        default_x = xscaler.transform(obs.reshape(1,-1))
     P = posterior.log_prob(torch.tensor(Y), x=default_x)
     pi = prior.log_prob(torch.tensor(Y))
     logZ =np.empty(3)
@@ -243,6 +246,7 @@ def preprocess(np_theta, arcis_spec):
     theta_aug = torch.tensor(np.repeat(np_theta, args.naug, axis=0), dtype=torch.float32, device=device)
     arcis_spec_aug = np.repeat(arcis_spec, args.naug, axis=0) + noise_spec*np.random.randn(samples_per_round[0]*args.naug, obs_spec.shape[0])
     global xscaler
+    global pca
     if r==0:
         ## Fit PCA and xscaler with samples from prior only
         if args.do_pca:
@@ -262,7 +266,7 @@ def preprocess(np_theta, arcis_spec):
                 pickle.dump(xscaler, file_xscaler)
 
     if args.do_pca:
-        x_i = pca_trans.transform(arcis_spec_aug)
+        x_i = pca.transform(arcis_spec_aug)
         if args.xnorm:
             x_f = xscaler.transform(x_i)
         else:
@@ -294,9 +298,9 @@ num_rounds = args.num_rounds
 
 if args.model == 'nsf':
     if args.embedding:
-        neural_posterior = posterior_nn(model='nsf', hidden_features=args.hidden, num_transforms=args.transforms, num_bins=args.bins, num_blocks=args.blocks, embedding_net=embedding_net)
+        neural_posterior = posterior_nn(model='nsf', hidden_features=args.hidden, num_transforms=args.transforms, num_bins=args.bins, num_blocks=args.blocks, embedding_net=embedding_net,z_score_x='none', z_score_y='none', use_batch_norm=True)
     else:
-        neural_posterior = posterior_nn(model='nsf', hidden_features=args.hidden, num_transforms=args.transforms, num_bins=args.bins, num_blocks=args.blocks)    
+        neural_posterior = posterior_nn(model='nsf', hidden_features=args.hidden, num_transforms=args.transforms, num_bins=args.bins, num_blocks=args.blocks, z_score_x='none', z_score_y='none', use_batch_norm=True) #z_score_x='structured', use_batch_norm, dropout_probability    
 else:
     neural_posterior = utils.posterior_nn(model=args.model)
 
@@ -413,9 +417,9 @@ while r<num_rounds:
         
     if r>1 and logZs[-1][0]<logZs[-2][0]:
         # If evidence doesn't improve we repeat last step
-        repeat=+1
-        print('Round rejected, repeating previous round. This round has been rejected '+str(repeat)+'times.')
-        logging.info('Round rejected, repeating previous round. This round has been rejected '+str(repeat)+'times.')
+        repeat+=1
+        print('Round rejected, repeating previous round. This round has been rejected '+str(repeat)+' times.')
+        logging.info('Round rejected, repeating previous round. This round has been rejected '+str(repeat)+' times.')
         logZs.pop(-1)
         theta_aug, x = preprocess(np_theta[r-1], arcis_spec[r-1])
         if repeat>args.nrepeat:
