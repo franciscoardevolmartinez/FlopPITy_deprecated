@@ -73,7 +73,7 @@ def simulator(parameters, directory, r, input_file, freeT, nTpoints, n, n_obs, s
         except:
             print('Couldn\'t store model ', model_dir)
         
-        np.save(directory+'T_round'+str(r)+'.npy',T)
+        np.save(directory+'T_round_'+str(r)+'.npy',T)
         np.save(directory+'P.npy',P)
     
     return arcis_spec
