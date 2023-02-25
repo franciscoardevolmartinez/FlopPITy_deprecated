@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-ARCiS = 'ARCiS'
+#ARCiS = 'ARCiS'
 
 import argparse
 from pathlib import Path
@@ -347,7 +347,7 @@ repeat=0
 while r<num_rounds:
     print('\n')
     print('\n **** Training round ', r)
-    logging.info('Round '+str(r))        
+    logging.info('#####  Round '+str(r)+'  #####')
     
     if args.reuse_prior_samples and r==0:
         print('Reusing '+str(samples_per_round[0])+' prior samples from '+ args.samples_dir)
@@ -400,7 +400,7 @@ while r<num_rounds:
 
 #             arcis_spec[r] = np.concatenate((arcis_spec[r], arcis_spec_ac[sm_ac!=0]))
        ''' 
-        
+        logging.info('Saving training examples...')
         with open(args.output+'/arcis_spec_round_'+str(r)+'.npy', 'wb') as file_arcis_spec:
             np.save(file_arcis_spec, arcis_spec[r])
         with open(args.output+'/Y_round_'+str(r)+'.npy', 'wb') as file_np_theta:
@@ -408,6 +408,7 @@ while r<num_rounds:
             
     ### COMPUTE EVIDENCE
     if r>0:
+        logging.info('Computing evidence...')
         logZ = evidence(posteriors[-1], prior, arcis_spec[r], np_theta[r], obs_spec, noise_spec)
         print('\n')
         print('ln (Z) = '+ str(round(logZ[0], 2))+' ('+str(round(logZ[1],2))+', '+str(round(logZ[2],2))+')')
