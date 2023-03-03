@@ -398,6 +398,9 @@ while r<num_rounds:
 
     plt.close('all')
 
+print('Inference ended.')    
+logging.info('Inference ended.')
+
 with open(args.output+'/post_equal_weights.txt', 'wb') as file_post_equal_weights:
     np.savetxt(file_post_equal_weights, samples[-1])
 
