@@ -10,18 +10,12 @@ import torch.nn as nn
 import torch.nn.functional as F
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning)
-from sbi import utils as utils
-from sbi import analysis as analysis
-from sbi.inference.base import infer
-from sklearn.decomposition import PCA
 import pickle
 import numpy as np
 from sklearn.preprocessing import StandardScaler
-from sbi.inference import SNPE,SNRE, prepare_for_sbi, simulate_for_sbi
 from sbi.utils.get_nn_models import posterior_nn
 from sbi import utils as utils
-from sbi import analysis as analysis
-from sbi.inference import SNPE_C, SNLE_A, SNRE_B
+from sbi.inference import SNPE_C
 from time import time
 import logging
 import os
@@ -40,33 +34,23 @@ def parse_args():
     parser = argparse.ArgumentParser(description=('Train SNPE_C'))
     parser.add_argument('-input', type=str, help='ARCiS input file for the retrieval')
     parser.add_argument('-output', type=str, default='output/', help='Directory to save output')
-    parser.add_argument('-model', type=str, default='nsf', help='Either nsf or maf.')
     parser.add_argument('-device', type=str, default='cpu', help='Device to use for training. Default: CPU.')
     parser.add_argument('-num_rounds', type=int, default=10, help='Number of rounds to train for. Default: 10.')
-    parser.add_argument('-samples_per_round', type=str, default='1000', help='Number of samples to draw for training each round. Default: 1000.')
-    parser.add_argument('-hidden', type=int, default=64)
-    parser.add_argument('-do_pca', action='store_true')
-    parser.add_argument('-n_pca', type=int, default=50)
-    parser.add_argument('-transforms', type=int, default=10)
-    parser.add_argument('-bins', type=int, default=8)
-    parser.add_argument('-blocks', type=int, default=3)
-    parser.add_argument('-embed_size', type=int, default=64)
-    parser.add_argument('-embedding', action='store_true')
+    parser.add_argument('-samples_per_round', type=int, default=1000, help='Number of samples to draw for training each round. Default: 1000.')
+    parser.add_argument('-hidden', type=int, default=32)
+    parser.add_argument('-transforms', type=int, default=5)
+    parser.add_argument('-bins', type=int, default=10)
+    parser.add_argument('-blocks', type=int, default=2)
     parser.add_argument('-ynorm', action='store_false')
     parser.add_argument('-xnorm', action='store_false')
-    parser.add_argument('-Ztol', type=float, default=10)
+    parser.add_argument('-Ztol', type=float, default=0.05)
+    parser.add_argument('-dropout', type=float, default=0)
     parser.add_argument('-nrepeat', type=int, default=3)
-    parser.add_argument('-discard_prior_samples', action='store_true')
-    parser.add_argument('-combined', action='store_true')
-    parser.add_argument('-naug', type=int, default=1)
     parser.add_argument('-processes', type=int, default=1)
-    parser.add_argument('-retrain_from_scratch', action='store_true')
     parser.add_argument('-patience', type=int, default=10)
     parser.add_argument('-atoms', type=int, default=10)
-    parser.add_argument('-method', type=str, default='snpe')
-    parser.add_argument('-sample_with', type=str, default='rejection')
-    parser.add_argument('-reuse_prior_samples', action='store_true')
-    parser.add_argument('-samples_dir', type=str)
+    parser.add_argument('-resume', action='store_true')
+    parser.add_argument('-dont_reject', action='store_false')
     return parser.parse_args()
 
 ### (Log) likelihood. Necessary to compute (log) evidence
@@ -80,10 +64,7 @@ def evidence(posterior, prior, samples, Y, obs, err):
     L = np.empty(len(samples))
     for j in range(len(samples)):
         L[j] = likelihood(obs, err, samples[j])
-    if args.do_pca:
-        default_x = xscaler.transform(pca.transform(obs.reshape(1,-1)))
-    else:
-        default_x = xscaler.transform(obs.reshape(1,-1))
+    default_x = xscaler.transform(obs.reshape(1,-1))
     P = posterior.log_prob(torch.tensor(Y), x=default_x)
     pi = prior.log_prob(torch.tensor(Y))
     logZ =np.empty(3)
@@ -91,20 +72,6 @@ def evidence(posterior, prior, samples, Y, obs, err):
     logZ[2] = np.percentile(-(P-pi-L).detach().numpy(), 84)
     logZ[1] = np.percentile(-(P-pi-L).detach().numpy(), 16)
     return logZ
-
-### Embedding network
-class SummaryNet(nn.Module):
-
-    def __init__(self, size_in, size_out):
-        super().__init__()
-        inter = int((size_in+size_out)/2)
-        self.fc1 = nn.Linear(size_in, inter)
-        self.fc2 = nn.Linear(inter, size_out)
-
-    def forward(self, x):
-        x = F.relu(self.fc1(x))
-        x = self.fc2(x)
-        return x
     
 ### Parameter transformer
 class Normalizer():
@@ -131,31 +98,31 @@ args = parse_args()
 
 ### COMPUTE FORWARD MODELS FROM NORMALISED PARAMETERS
 def compute(np_theta):
-            samples_per_process = len(np_theta)//args.processes
+    samples_per_process = len(np_theta)//args.processes
 
-            print('Samples per process: ', samples_per_process)
+    print('Samples per process: ', samples_per_process)
 
-            parargs=[]
-            if args.ynorm:
-                params=yscaler.inverse_transform(np_theta)
-            else:
-                params = np_theta
-            if freeT:
-                for i in range(args.processes-1):
-                    parargs.append((params[i*samples_per_process:(i+1)*samples_per_process], args.output, r, args.input, freeT, nTpoints, i, len(obs), len(obs_spec)))
-                parargs.append((params[(args.processes-1)*samples_per_process:], args.output, r, args.input, freeT, nTpoints, args.processes-1, len(obs), len(obs_spec)))
-            else:
-                for i in range(args.processes-1):
-                    parargs.append((params[i*samples_per_process:(i+1)*samples_per_process], args.output, r, args.input, freeT, 0, i, len(obs), len(obs_spec)))
-                parargs.append((params[(args.processes-1)*samples_per_process:], args.output, r, args.input, freeT, 0, args.processes-1, len(obs), len(obs_spec)))
+    parargs=[]
+    if args.ynorm:
+        params=yscaler.inverse_transform(np_theta)
+    else:
+        params = np_theta
+    if freeT:
+        for i in range(args.processes-1):
+            parargs.append((params[i*samples_per_process:(i+1)*samples_per_process], args.output, r, args.input, freeT, nTpoints, i, len(obs), len(obs_spec)))
+        parargs.append((params[(args.processes-1)*samples_per_process:], args.output, r, args.input, freeT, nTpoints, args.processes-1, len(obs), len(obs_spec)))
+    else:
+        for i in range(args.processes-1):
+            parargs.append((params[i*samples_per_process:(i+1)*samples_per_process], args.output, r, args.input, freeT, 0, i, len(obs), len(obs_spec)))
+        parargs.append((params[(args.processes-1)*samples_per_process:], args.output, r, args.input, freeT, 0, args.processes-1, len(obs), len(obs_spec)))
 
-            tic=time()
-            with Pool(processes = args.processes) as pool:
-                arcis_specs = pool.starmap(simulator, parargs)
-            arcis_spec = np.concatenate(arcis_specs)
-            print('Time elapsed: ', time()-tic)
-            logging.info(('Time elapsed: ', time()-tic))
-            return arcis_spec
+    tic=time()
+    with Pool(processes = args.processes) as pool:
+        arcis_specs = pool.starmap(simulator, parargs)
+    arcis_spec = np.concatenate(arcis_specs)
+    print('Time elapsed: ', time()-tic)
+    logging.info(('Time elapsed: ', time()-tic))
+    return arcis_spec
 
 p = Path(args.output)
 p.mkdir(parents=True, exist_ok=True)
@@ -239,39 +206,18 @@ for j in range(len(obs)):
     obs_spec[sum(l[:j+1]):sum(l[:j+2])] = phasej[:,1]
     noise_spec[sum(l[:j+1]):sum(l[:j+2])] = phasej[:,2]
 
-embedding_net = SummaryNet(obs_spec.shape[0], args.embed_size)
-
 ### Preprocessing for spectra and parameters
 def preprocess(np_theta, arcis_spec):
-    theta_aug = torch.tensor(np.repeat(np_theta, args.naug, axis=0), dtype=torch.float32, device=device)
-    arcis_spec_aug = np.repeat(arcis_spec, args.naug, axis=0) + noise_spec*np.random.randn(samples_per_round[0]*args.naug, obs_spec.shape[0])
+    theta_aug = torch.tensor(np_theta, dtype=torch.float32, device=device)
+    arcis_spec_aug = arcis_spec + noise_spec*np.random.randn(samples_per_round, obs_spec.shape[0])
     global xscaler
-    global pca
     if r==0:
-        ## Fit PCA and xscaler with samples from prior only
-        if args.do_pca:
-            print('Fitting PCA...')
-            logging.info('Fitting PCA...')
-            pca = PCA(n_components=args.n_pca)
-            pca.fit(arcis_spec)
-            with open(args.output+'/pca.p', 'wb') as file_pca:
-                pickle.dump(pca, file_pca)
-            if args.xnorm:
-                xscaler = StandardScaler().fit(pca.transform(arcis_spec))
-                with open(args.output+'/xscaler.p', 'wb') as file_xscaler:
-                    pickle.dump(xscaler, file_xscaler)
-        elif args.xnorm:
+        if args.xnorm:
             xscaler = StandardScaler().fit(arcis_spec)
             with open(args.output+'/xscaler.p', 'wb') as file_xscaler:
                 pickle.dump(xscaler, file_xscaler)
 
-    if args.do_pca:
-        x_i = pca.transform(arcis_spec_aug)
-        if args.xnorm:
-            x_f = xscaler.transform(x_i)
-        else:
-            x_f = x_i
-    elif args.xnorm:
+    if args.xnorm:
         x_f = xscaler.transform(arcis_spec_aug)
     else:
         x_f = arcis_spec_aug
@@ -296,36 +242,14 @@ prior = utils.BoxUniform(low=prior_min.to(device, non_blocking=True), high=prior
 
 num_rounds = args.num_rounds
 
-if args.model == 'nsf':
-    if args.embedding:
-        neural_posterior = posterior_nn(model='nsf', hidden_features=args.hidden, num_transforms=args.transforms, num_bins=args.bins, num_blocks=args.blocks, embedding_net=embedding_net,z_score_x='none', z_score_y='none', use_batch_norm=True)
-    else:
-        neural_posterior = posterior_nn(model='nsf', hidden_features=args.hidden, num_transforms=args.transforms, num_bins=args.bins, num_blocks=args.blocks, z_score_x='none', z_score_y='none', use_batch_norm=True) #z_score_x='structured', use_batch_norm, dropout_probability    
-else:
-    neural_posterior = utils.posterior_nn(model=args.model)
+neural_posterior = posterior_nn(model='nsf', hidden_features=args.hidden, num_transforms=args.transforms, num_bins=args.bins, num_blocks=args.blocks,
+                                z_score_x='none', z_score_y='none', use_batch_norm=True, dropout_probability=args.dropout)
 
-if args.method=='snpe':
-    inference = SNPE_C(prior = prior, density_estimator=neural_posterior, device=device)
-elif args.method=='snle':
-    inference = SNLE_A(prior = prior, density_estimator=neural_posterior, device=device)
-elif args.method=='snre':
-    inference = SNRE_B(prior = prior, density_estimator=neural_posterior, device=device)
+inference = SNPE_C(prior = prior, density_estimator=neural_posterior, device=device)
 
-nsamples = args.samples_per_round
+samples_per_round = args.samples_per_round
 
-try:
-    samples_per_round = int(nsamples)
-except:
-    samples_per_round = nsamples.split()
-    for i in range(len(samples_per_round)):
-        samples_per_round[i] = int(samples_per_round[i])
 
-try:
-    num_rounds=len(samples_per_round)
-except:
-    num_rounds=num_rounds
-    samples_per_round = num_rounds*[samples_per_round]
-    
 print('Training multi-round inference')
 logging.info('Training multi-round inference')
 
@@ -335,8 +259,6 @@ posteriors=[]
 samples=[]
 
 logZs = []
-logZp1s = []
-logZm1s = []
 
 np_theta = {}
 arcis_spec = {}
@@ -344,67 +266,47 @@ arcis_spec = {}
 r=0
 repeat=0
 
+if args.resume:
+    print('Reading files from previous run...')
+    logging.info('Reading files from previous run...')
+    np_theta = pickle.load(open(args.output+'/Y.p', 'rb'))
+    arcis_spec = pickle.load(open(args.output+'/arcis_spec.p', 'rb'))
+    r=len(arcis_spec.keys())
+    posteriors=torch.load(args.output+'/posteriors.pt')
+    proposal=posteriors[-1]
+    samples=pickle.load(open(args.output+'/samples.p', 'rb'))
+    logZs=pickle.load(open(args.output+'/evidence.p', 'rb'))
+    inference=pickle.load(open(args.output+'/inference.p', 'rb'))
+    xscaler=pickle.load(open(args.output+'/xscaler.p', 'rb'))
+    yscaler=pickle.load(open(args.output+'/yscaler.p', 'rb'))
+    num_rounds+=r
+
 while r<num_rounds:
     print('\n')
     print('\n **** Training round ', r)
     logging.info('#####  Round '+str(r)+'  #####')
     
-    if args.reuse_prior_samples and r==0:
-        print('Reusing '+str(samples_per_round[0])+' prior samples from '+ args.samples_dir)
-        logging.info('Reusing '+str(samples_per_round[0])+' prior samples from '+ args.samples_dir)
-        arcis_spec = np.load(args.samples_dir+'/arcis_spec_round_'+str(0)+'.npy')[:samples_per_round[0]]
-        np_theta = np.load(args.samples_dir+'/Y_round_'+str(0)+'.npy')[:samples_per_round[0]]
+    ##### DRAW SAMPLES
+    logging.info('Drawing '+str(samples_per_round)+' samples')
+    print('Samples per round: ', samples_per_round)
+    theta = proposal.sample((samples_per_round,))
+    np_theta[r] = theta.cpu().detach().numpy().reshape([-1, len(prior_bounds)])
+
+    if args.ynorm:
+        post_plot = yscaler.inverse_transform(np_theta[r])
     else:
-        ##### DRAW SAMPLES
-        logging.info('Drawing '+str(samples_per_round[r])+' samples')
-        print('Samples per round: ', samples_per_round[r])
-        theta = proposal.sample((samples_per_round[r],))
-        np_theta[r] = theta.cpu().detach().numpy().reshape([-1, len(prior_bounds)])
-                
-        if args.ynorm:
-            post_plot = yscaler.inverse_transform(np_theta[r])
-        else:
-            post_plot = np_theta[r]
-        
-        fig1 = corner(post_plot, color='rebeccapurple', show_titles=True, smooth=0.9, range=prior_bounds, labels=parnames)
-        with open(args.output+'corner_'+str(r)+'.jpg', 'wb') as file_corner:
-            plt.savefig(file_corner, bbox_inches='tight')
-        plt.close('all')
-                
-        #### COMPUTE MODELS
-        arcis_spec[r] = compute(np_theta[r])
-        
-        for j in range(args.processes):
-            os.system('rm -rf '+args.output + 'round_'+str(r)+str(j)+'_out/')
-            
-        ''' 
-        THIS IS ONLY NECESSARY IN CASE ARCiS CRASHES, AT THE MOMENT THIS SEEMS UNDER CONTROL
-        # sm = np.sum(arcis_spec[r], axis=1)
+        post_plot = np_theta[r]
 
-        # arcis_spec[r] = arcis_spec[r][sm!=0]
-        
-#         while len(arcis_spec)<samples_per_round[r]:
-#             remain = samples_per_round[r]-len(arcis_spec[r])
-#             print('ARCiS crashed, computing remaining ' +str(remain)+' models.')
-#             logging.info('ARCiS crashed, computing remaining ' +str(remain)+' models.')
-            
-#             theta[len(arcis_spec[r]):] = proposal.sample((remain,))
-#             np_theta[r] = theta.cpu().detach().numpy().reshape([-1, len(prior_bounds)])
-                        
-#             arcis_spec_ac=compute(np_theta[len(arcis_spec[r]):])
-                
-#             for j in range(args.processes):
-#                 os.system('rm -rf '+args.output + 'round_'+str(r)+str(j)+'_out/')
-                            
-#             sm_ac = np.sum(arcis_spec_ac, axis=1)
+    fig1 = corner(post_plot, color='rebeccapurple', show_titles=True, smooth=0.9, range=prior_bounds, labels=parnames)
+    with open(args.output+'corner_'+str(r)+'.jpg', 'wb') as file_corner:
+        plt.savefig(file_corner, bbox_inches='tight')
+    plt.close('all')
 
-#             arcis_spec[r] = np.concatenate((arcis_spec[r], arcis_spec_ac[sm_ac!=0]))
-       ''' 
-        logging.info('Saving training examples...')
-        with open(args.output+'/arcis_spec_round_'+str(r)+'.npy', 'wb') as file_arcis_spec:
-            np.save(file_arcis_spec, arcis_spec[r])
-        with open(args.output+'/Y_round_'+str(r)+'.npy', 'wb') as file_np_theta:
-            np.save(file_np_theta, np_theta[r])
+    #### COMPUTE MODELS
+    arcis_spec[r] = compute(np_theta[r])
+
+    for j in range(args.processes):
+        os.system('rm -rf '+args.output + 'round_'+str(r)+str(j)+'_out/')
             
     ### COMPUTE EVIDENCE
     if r>0:
@@ -415,18 +317,22 @@ while r<num_rounds:
         logging.info('ln (Z) = '+ str(round(logZ[0], 2))+' ('+str(round(logZ[1],2))+', '+str(round(logZ[2],2))+')')
         print('\n')
         logZs.append(logZ)
-        
-    if r>1 and logZs[-1][0]<logZs[-2][0]:
+    
+    if args.dont_reject and r>1 and logZs[-1][0]<logZs[-2][0]:
         # If evidence doesn't improve we repeat last step
         repeat+=1
         print('Round rejected, repeating previous round. This round has been rejected '+str(repeat)+' times.')
         logging.info('Round rejected, repeating previous round. This round has been rejected '+str(repeat)+' times.')
         logZs.pop(-1)
-        theta_aug, x = preprocess(np_theta[r-1], arcis_spec[r-1])
+        posteriors.pop(-1)
+        del arcis_spec[r]
+        del np_theta[r]
+        # theta_aug, x = preprocess(np_theta[r-1], arcis_spec[r-1])
+        reject=True
         if repeat>args.nrepeat:
-            print('This round has been repeated the maximum number of times. Ending inference.')
-            logging.info('This round has been repeated the maximum number of times. Ending inference.')
-            r=num_rounds
+            print('This round has been rejected the maximum number of times. Ending inference.')
+            logging.info('This round has been rejected the maximum number of times. Ending inference.')
+            break
     else:
         repeat=0
         if r>0:
@@ -436,61 +342,52 @@ while r<num_rounds:
                 pickle.dump(logZs, file_evidence)
         ### PREPROCESS DATA
         theta_aug, x = preprocess(np_theta[r], arcis_spec[r])
-        if r>1 and (logZs[-1][0]-logZs[-2][0])<args.Ztol:
+        reject=False
+        if r>1 and abs(logZs[-1][0]-logZs[-2][0])<args.Ztol:
             r=num_rounds
         else:
             r+=1
 
     ### TRAIN
-    logging.info('Training...')
+    
+    logging.info('Saving training examples...')
+    print('Saving training examples...')
+    with open(args.output+'/arcis_spec.p', 'wb') as file_arcis_spec:
+        pickle.dump(arcis_spec, file_arcis_spec)
+    with open(args.output+'/Y.p', 'wb') as file_np_theta:
+        pickle.dump(np_theta, file_np_theta)
+    
     tic = time()
-    if args.method=='snpe':
-        density_estimator = inference.append_simulations(theta_aug, x, proposal=proposal).train(
-            discard_prior_samples=args.discard_prior_samples, use_combined_loss=args.combined, show_train_summary=True, 
-            stop_after_epochs=args.patience, num_atoms=args.atoms, retrain_from_scratch=False, 
-            force_first_round_loss=True)
-    elif args.method=='snle':
-        density_estimator = inference.append_simulations(theta_aug, x).train(
-            discard_prior_samples=args.discard_prior_samples, show_train_summary=True, 
-            stop_after_epochs=args.patience)
-
+    logging.info('Training SNPE...')
+    print('Training SNPE...')
+    if not reject:
+        inference_object = inference.append_simulations(theta_aug, x, proposal=proposal)
+        with open(args.output+'/inference.p', 'wb') as file_inference:
+            pickle.dump(inference, file_inference)
+            
+    posterior_estimator = inference_object.train(show_train_summary=True, stop_after_epochs=args.patience, num_atoms=args.atoms, force_first_round_loss=True)
+        
+    if args.xnorm:
+        default_x = xscaler.transform(obs_spec.reshape(1,-1))
+    else:
+        default_x = obs_spec.reshape(1,-1)
 
     ### GENERATE POSTERIOR
+    
     print('\n Time elapsed: '+str(time()-tic))
     logging.info('Time elapsed: '+str(time()-tic))
-    try:
-        posterior = inference.build_posterior(density_estimator, sample_with=args.sample_with)
-    except:
-        print('\n OH NO!, IT HAPPENED!')
-        logging.info('OH NO!, IT HAPPENED!')
-        try:
-            posterior = inference.build_posterior(density_estimator, sample_with=args.sample_with)
-        except:
-            print('\n OH NO!, IT HAPPENED *AGAIN*!?')
-            logging.info('OH NO!, IT HAPPENED *AGAIN*!?')
-            posterior = inference.build_posterior(density_estimator, sample_with=args.sample_with)
+    posterior = inference_object.build_posterior(sample_with='rejection').set_default_x(default_x)
     posteriors.append(posterior)
     print('Saving posteriors ')
     logging.info('Saving posteriors ')
     with open(args.output+'/posteriors.pt', 'wb') as file_posteriors:
         torch.save(posteriors, file_posteriors)
-
-    if args.do_pca:
-        default_x_pca = pca.transform(obs_spec.reshape(1,-1))
-        if args.xnorm:
-            default_x = xscaler.transform(default_x_pca)
-        else:
-            default_x = default_x_pca
-    elif args.xnorm:
-        default_x = xscaler.transform(obs_spec.reshape(1,-1))
-    else:
-        default_x = obs_spec.reshape(1,-1)
-
-    proposal = posterior.set_default_x(default_x)
+    proposal = posterior
+        
     
     print('Saving samples ')
     logging.info('Saving samples ')
-    tsamples = posterior.sample((10000,), x=default_x, show_progress_bars=True)
+    tsamples = posterior.sample((5000,))
     if args.ynorm:
         samples.append(yscaler.inverse_transform(tsamples.cpu().detach().numpy()))
     else:
@@ -500,26 +397,6 @@ while r<num_rounds:
         pickle.dump(samples, file_samples)
 
     plt.close('all')
-
-
-### FINISH OFF        
-# print('Drawing samples ')
-# logging.info('Drawing samples ')
-# for j in range(len(posteriors)):
-#     print('Drawing samples from round ', j)
-#     logging.info('Drawing samples from round ' + str(j))
-#     posterior = posteriors[j]
-#     tsamples = posterior.sample((10000,), x=default_x, show_progress_bars=True)
-#     if args.ynorm:
-#         samples.append(yscaler.inverse_transform(tsamples.cpu().detach().numpy()))
-#     else:
-#         samples.append(tsamples.cpu().detach().numpy())
-
-# # Is this actually necessary??
-# print('Saving samples ')
-# logging.info('Saving samples ')
-# with open(args.output+'/samples.p', 'wb') as file_samples:
-#     pickle.dump(samples, file_samples)
 
 with open(args.output+'/post_equal_weights.txt', 'wb') as file_post_equal_weights:
     np.savetxt(file_post_equal_weights, samples[-1])
