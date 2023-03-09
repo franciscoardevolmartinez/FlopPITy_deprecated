@@ -87,13 +87,8 @@ class SummaryNet(nn.Module):
     def __init__(self, size_in, size_out):
         super().__init__()
         inter = int((size_in+size_out)/2)
-        self.fc1 = nn.Linear(size_in, size_out)
+        self.fc1 = nn.Linear(size_in, inter)
         self.fc2 = nn.Linear(inter, size_out)
-        print(size_in)
-        print(inter)
-        print(size_out)
-        print(self.fc1)
-        print(self.fc2)
 
     def forward(self, x):
         x = F.relu(self.fc1(x))
