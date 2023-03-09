@@ -15,7 +15,7 @@ The following python packages are needed:
 
 ## Quick start guide
 The best way to run a retrieval is with a script. The most basic example of such a script can be found in `example.sh`.
-Inference stops when the evidence changes by less than a certain tolerance, or when a number of rounds equal to num_rounds has been reached.
+Inference stops when the evidence changes by less than a certain tolerance, or when a number of rounds equal to num_rounds has been reached. 
 
 Here's a brief description of some of the most important options:
 - `device`: Used to specify the device on which the flows are trained. Can be `cpu` or `gpu`. Default: `cpu`.
@@ -23,13 +23,15 @@ Here's a brief description of some of the most important options:
 - `embed_size`: The size of the embedding network's output.
 - `Ztol`: Specifies the maximum change in log(Z) to stop inference. For parameter estimation, large values (e.g. 10, set by default) are fine. For model comparison, it should be <1.
 - `processes`: The number of parallel instances of ARCiS running to compute the training set. Can be used to speed up the inference if multiple cores are available.
+- `dont_reject`: By default, a round will be rejected if the evidence doesn't improve with respect to the previous one. This option turns it off. This is fine for parameter estimation.
+
 
 ### Output
 exoFlows produces a lot of output files:
 
 - `post_equal_weights.txt`: File containing 10,000 posterior points.
-- `arcis_spec_round_XX.npy`: `numpy` arrays containing the forward models for the XXth round. If there are multiple observations, the modeled spectra for the different observations are concatenated one after the other, so the shape of the arrays is `[number of models per round, total number of wavelength bins]`.
-- `Y_round_XX.npy`: `numpy` arrays containing the parameters (normalized) used to compute the forward models for the XXth round.
+- `arcis_spec_round.p`: `pickle` file containing a dictionary with the forward models for all rounds. If there are multiple observations, the modeled spectra for the different observations are concatenated one after the other, so the shape of the arrays is `[number of models per round, total number of wavelength bins]`.
+- `Y_round.p`: `pickle` file containing a dictionary with the parameters (normalized) used to compute the forward models for all rounds.
 - `P.npy`: `numpy` array containing the pressure levels of the model.
 - `T_round_XX.npy`: `numpy` arrays containing the temperature structure for all forward models in round XX.
 - `samples.p`: `pickle` file containing 10,000 samples from the posterior computed at each round.
