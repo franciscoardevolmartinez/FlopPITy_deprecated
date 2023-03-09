@@ -13,6 +13,7 @@ warnings.filterwarnings("ignore", category=UserWarning)
 import pickle
 import numpy as np
 from sklearn.preprocessing import StandardScaler
+from sklearn.decomposition import PCA
 from sbi.utils.get_nn_models import posterior_nn
 from sbi import utils as utils
 from sbi.inference import SNPE_C
@@ -39,6 +40,10 @@ def parse_args():
     parser.add_argument('-samples_per_round', type=int, default=1000, help='Number of samples to draw for training each round. Default: 1000.')
     parser.add_argument('-hidden', type=int, default=32)
     parser.add_argument('-transforms', type=int, default=5)
+    parser.add_argument('-do_pca', action='store_true')
+    parser.add_argument('-n_pca', type=int, default=50)
+    parser.add_argument('-embed_size', type=int, default=64)
+    parser.add_argument('-embedding', action='store_true')
     parser.add_argument('-bins', type=int, default=10)
     parser.add_argument('-blocks', type=int, default=2)
     parser.add_argument('-ynorm', action='store_false')
@@ -64,7 +69,10 @@ def evidence(posterior, prior, samples, Y, obs, err):
     L = np.empty(len(samples))
     for j in range(len(samples)):
         L[j] = likelihood(obs, err, samples[j])
-    default_x = xscaler.transform(obs.reshape(1,-1))
+    if args.do_pca:
+        default_x = xscaler.transform(pca.transform(obs.reshape(1,-1)))
+    else:
+        default_x = xscaler.transform(obs.reshape(1,-1))
     P = posterior.log_prob(torch.tensor(Y), x=default_x)
     pi = prior.log_prob(torch.tensor(Y))
     logZ =np.empty(3)
@@ -72,6 +80,25 @@ def evidence(posterior, prior, samples, Y, obs, err):
     logZ[2] = np.percentile(-(P-pi-L).detach().numpy(), 84)
     logZ[1] = np.percentile(-(P-pi-L).detach().numpy(), 16)
     return logZ
+
+### Embedding network
+class SummaryNet(nn.Module):
+
+    def __init__(self, size_in, size_out):
+        super().__init__()
+        inter = int((size_in+size_out)/2)
+        self.fc1 = nn.Linear(size_in, size_out)
+        self.fc2 = nn.Linear(inter, size_out)
+        print(size_in)
+        print(inter)
+        print(size_out)
+        print(self.fc1)
+        print(self.fc2)
+
+    def forward(self, x):
+        x = F.relu(self.fc1(x))
+        x = self.fc2(x)
+        return x
     
 ### Parameter transformer
 class Normalizer():
@@ -206,18 +233,41 @@ for j in range(len(obs)):
     obs_spec[sum(l[:j+1]):sum(l[:j+2])] = phasej[:,1]
     noise_spec[sum(l[:j+1]):sum(l[:j+2])] = phasej[:,2]
 
+if args.embedding:
+    embedding_net = SummaryNet(obs_spec.shape[0], args.embed_size)
+else:
+    embedding_net = nn.Identity()
+    
 ### Preprocessing for spectra and parameters
 def preprocess(np_theta, arcis_spec):
     theta_aug = torch.tensor(np_theta, dtype=torch.float32, device=device)
     arcis_spec_aug = arcis_spec + noise_spec*np.random.randn(samples_per_round, obs_spec.shape[0])
     global xscaler
+    global pca
     if r==0:
-        if args.xnorm:
+        if args.do_pca:
+            print('Fitting PCA...')
+            logging.info('Fitting PCA...')
+            pca = PCA(n_components=args.n_pca)
+            pca.fit(arcis_spec)
+            with open(args.output+'/pca.p', 'wb') as file_pca:
+                pickle.dump(pca, file_pca)
+            if args.xnorm:
+                xscaler = StandardScaler().fit(pca.transform(arcis_spec))
+                with open(args.output+'/xscaler.p', 'wb') as file_xscaler:
+                    pickle.dump(xscaler, file_xscaler)  
+        elif args.xnorm:
             xscaler = StandardScaler().fit(arcis_spec)
             with open(args.output+'/xscaler.p', 'wb') as file_xscaler:
                 pickle.dump(xscaler, file_xscaler)
 
-    if args.xnorm:
+    if args.do_pca:
+        x_i = pca.transform(arcis_spec_aug)
+        if args.xnorm:
+            x_f = xscaler.transform(x_i)
+        else:
+            x_f = x_i
+    elif args.xnorm:
         x_f = xscaler.transform(arcis_spec_aug)
     else:
         x_f = arcis_spec_aug
@@ -243,7 +293,7 @@ prior = utils.BoxUniform(low=prior_min.to(device, non_blocking=True), high=prior
 num_rounds = args.num_rounds
 
 neural_posterior = posterior_nn(model='nsf', hidden_features=args.hidden, num_transforms=args.transforms, num_bins=args.bins, num_blocks=args.blocks,
-                                z_score_x='none', z_score_y='none', use_batch_norm=True, dropout_probability=args.dropout)
+                                z_score_x='none', z_score_y='none', use_batch_norm=True, dropout_probability=args.dropout, embedding_net=embedding_net)
 
 inference = SNPE_C(prior = prior, density_estimator=neural_posterior, device=device)
 
@@ -279,12 +329,15 @@ if args.resume:
     inference=pickle.load(open(args.output+'/inference.p', 'rb'))
     xscaler=pickle.load(open(args.output+'/xscaler.p', 'rb'))
     yscaler=pickle.load(open(args.output+'/yscaler.p', 'rb'))
+    pca=pickle.load(open(args.output+'/pca.p', 'rb'))
     num_rounds+=r
 
 while r<num_rounds:
     print('\n')
     print('\n **** Training round ', r)
     logging.info('#####  Round '+str(r)+'  #####')
+    
+    # samples_per_round=max(int(args.samples_per_round*(1/1+r)),100)
     
     ##### DRAW SAMPLES
     logging.info('Drawing '+str(samples_per_round)+' samples')
@@ -341,6 +394,8 @@ while r<num_rounds:
                 logging.info('Saving evidence...')
                 pickle.dump(logZs, file_evidence)
         ### PREPROCESS DATA
+        print('Preprocessing data...')
+        logging.info('Preprocessing data...')
         theta_aug, x = preprocess(np_theta[r], arcis_spec[r])
         reject=False
         if r>1 and abs(logZs[-1][0]-logZs[-2][0])<args.Ztol:
@@ -366,13 +421,19 @@ while r<num_rounds:
             pickle.dump(inference, file_inference)
             
     posterior_estimator = inference_object.train(show_train_summary=True, stop_after_epochs=args.patience, num_atoms=args.atoms, force_first_round_loss=True)
-        
-    if args.xnorm:
+    
+    ### GENERATE POSTERIOR
+    
+    if args.do_pca:
+        default_x_pca = pca.transform(obs_spec.reshape(1,-1))
+        if args.xnorm:
+            default_x = xscaler.transform(default_x_pca)
+        else:
+            default_x = default_x_pca
+    elif args.xnorm:
         default_x = xscaler.transform(obs_spec.reshape(1,-1))
     else:
         default_x = obs_spec.reshape(1,-1)
-
-    ### GENERATE POSTERIOR
     
     print('\n Time elapsed: '+str(time()-tic))
     logging.info('Time elapsed: '+str(time()-tic))
@@ -383,21 +444,27 @@ while r<num_rounds:
     with open(args.output+'/posteriors.pt', 'wb') as file_posteriors:
         torch.save(posteriors, file_posteriors)
     proposal = posterior
-        
     
-    print('Saving samples ')
-    logging.info('Saving samples ')
-    tsamples = posterior.sample((5000,))
-    if args.ynorm:
-        samples.append(yscaler.inverse_transform(tsamples.cpu().detach().numpy()))
-    else:
-        samples.append(tsamples.cpu().detach().numpy())
+    
+    ### DRAW 5000 SAMPLES (JUST FOR PLOTTING)
         
-    with open(args.output+'/samples.p', 'wb') as file_samples:
-        pickle.dump(samples, file_samples)
+    if not reject:
+        print('Saving samples ')
+        logging.info('Saving samples ')
+        tsamples = posterior.sample((5000,))
+        if args.ynorm:
+            samples.append(yscaler.inverse_transform(tsamples.cpu().detach().numpy()))
+        else:
+            samples.append(tsamples.cpu().detach().numpy())
+
+        with open(args.output+'/samples.p', 'wb') as file_samples:
+            pickle.dump(samples, file_samples)
 
     plt.close('all')
+    
 
+### FINISHING    
+    
 print('Inference ended.')    
 logging.info('Inference ended.')
 
