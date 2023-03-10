@@ -87,12 +87,12 @@ class SummaryNet(nn.Module):
     def __init__(self, size_in, size_out):
         super().__init__()
         inter = int((size_in+size_out)/2)
-        self.fc1 = nn.Linear(size_in, inter)
-        self.fc2 = nn.Linear(inter, size_out)
+        self.fc1 = nn.Linear(size_in, size_out)
+        # self.fc2 = nn.Linear(inter, size_out)
 
     def forward(self, x):
-        x = F.relu(self.fc1(x))
-        x = self.fc2(x)
+        x = F.sigmoid(self.fc1(x))
+        # x = self.fc2(x)
         return x
     
 ### Parameter transformer
@@ -229,6 +229,7 @@ for j in range(len(obs)):
     noise_spec[sum(l[:j+1]):sum(l[:j+2])] = phasej[:,2]
 
 if args.embedding:
+    print('Using an embedding network.')
     embedding_net = SummaryNet(obs_spec.shape[0], args.embed_size)
 else:
     embedding_net = nn.Identity()
