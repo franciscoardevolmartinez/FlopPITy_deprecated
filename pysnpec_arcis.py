@@ -345,17 +345,36 @@ repeat=0
 if args.resume:
     print('Reading files from previous run...')
     logging.info('Reading files from previous run...')
+    print('Reading Y.p ...')
+    logging.info('Reading Y.p ...')
     np_theta = pickle.load(open(args.output+'/Y.p', 'rb'))
+    print('Reading arcis_spec.p ...')
+    logging.info('Reading arcis_spec.p ...')
     arcis_spec = pickle.load(open(args.output+'/arcis_spec.p', 'rb'))
     r=len(arcis_spec.keys())
+    print('Reading posteriors.pt ...')
+    logging.info('Reading posteriors.pt ...')
     posteriors=torch.load(args.output+'/posteriors.pt')
     proposal=posteriors[-1]
+    print('Reading samples.p ...')
+    logging.info('Reading samples.p ...')
     samples=pickle.load(open(args.output+'/samples.p', 'rb'))
+    print('Reading evidence.p ...')
+    logging.info('Reading evidence.p ...')
     logZs=pickle.load(open(args.output+'/evidence.p', 'rb'))
+    print('Reading inference.p ...')
+    logging.info('Reading inference.p ...')
     inference=pickle.load(open(args.output+'/inference.p', 'rb'))
+    print('Reading xscaler.p ...')
+    logging.info('Reading xscaler.p ...')
     xscaler=pickle.load(open(args.output+'/xscaler.p', 'rb'))
+    print('Reading samples.p ...')
+    logging.info('Reading samples.p ...')
     yscaler=pickle.load(open(args.output+'/yscaler.p', 'rb'))
-    pca=pickle.load(open(args.output+'/pca.p', 'rb'))
+    if args.do_pca:
+        print('Reading pca.p ...')
+        logging.info('Reading pca.p ...')
+        pca=pickle.load(open(args.output+'/pca.p', 'rb'))
     num_rounds+=r
 
 while r<num_rounds:
