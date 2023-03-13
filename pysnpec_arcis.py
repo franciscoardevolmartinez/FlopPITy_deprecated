@@ -95,6 +95,36 @@ class SummaryNet(nn.Module):
         # x = self.fc2(x)
         return x
     
+### Display 1D marginals in console
+def post2txt(post, nbins=20, a=33, b=67):
+    D = post.shape[1]
+    ls = [len(k) for k in parnames]
+    for j in range(D):
+        edges = [prior_bounds[j][0]]
+        binwidth=(prior_bounds[j][1]-prior_bounds[j][0])/nbins
+        for i in range(nbins):
+            edges.append(edges[-1]+binwidth)
+        try:
+            counts, _ = np.histogram(post[:,j], bins=edges)
+        except:
+            counts, _ = np.histogram(post[:,j], bins=edges[::-1])
+        a_=np.percentile(counts[counts>0],a)
+        b_=np.percentile(counts[counts>0],b)
+        oneD=['|']+nbins*[' ']+['|']
+        for i in range(nbins):
+            if counts[i]>b_:
+                oneD[1+i]='*'
+            elif counts[i]>a_:
+                oneD[1+i]='.'
+        print(parnames[j]+(max(ls)-ls[j])*' '+' -> '  +''.join(oneD)+
+              '  /  '+str(round(np.median(post[:,j]),2))+'  ('+
+              str(round(np.percentile(post[:,j],16),2))+', '+
+              str(round(np.percentile(post[:,j],84),2))+')')
+        logging.info(parnames[j]+(max(ls)-ls[j])*' '+' -> '  +''.join(oneD)+
+              '  /  '+str(round(np.median(post[:,j]),2))+'  ('+
+              str(round(np.percentile(post[:,j],16),2))+', '+
+              str(round(np.percentile(post[:,j],84),2))+')')
+    
 ### Parameter transformer
 class Normalizer():
     def __init__(self, prior_bounds):
@@ -455,6 +485,13 @@ while r<num_rounds:
 
         with open(args.output+'/samples.p', 'wb') as file_samples:
             pickle.dump(samples, file_samples)
+    
+    print('\n')
+    print('##### 1D marginals #####')
+    print('________________________')
+    print('\n')
+    post2txt(samples[-1])
+    print('\n')
 
     plt.close('all')
     
