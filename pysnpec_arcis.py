@@ -174,6 +174,7 @@ def compute(np_theta):
     arcis_spec = np.concatenate(arcis_specs)
     print('Time elapsed: ', time()-tic)
     logging.info(('Time elapsed: ', time()-tic))
+    
     return arcis_spec
 
 p = Path(args.output)
@@ -189,9 +190,9 @@ print('Command line arguments: '+ str(args))
 
 device = args.device
 
-os.system('cp '+args.input + ' '+args.output+'input_arcis.dat')
+os.system('cp '+args.input + ' '+args.output+'/input_arcis.dat')
 
-args.input = args.output+'input_arcis.dat'
+args.input = args.output+'/input_arcis.dat'
 
 ### READ PARAMETERS
 inp = []
@@ -396,15 +397,43 @@ while r<num_rounds:
         post_plot = np_theta[r]
 
     fig1 = corner(post_plot, color='rebeccapurple', show_titles=True, smooth=0.9, range=prior_bounds, labels=parnames)
-    with open(args.output+'corner_'+str(r)+'.jpg', 'wb') as file_corner:
+    with open(args.output+'/corner_'+str(r)+'.jpg', 'wb') as file_corner:
         plt.savefig(file_corner, bbox_inches='tight')
     plt.close('all')
 
     #### COMPUTE MODELS
     arcis_spec[r] = compute(np_theta[r])
-
+    
     for j in range(args.processes):
-        os.system('rm -rf '+args.output + 'round_'+str(r)+str(j)+'_out/')
+        os.system('mv '+args.output + '/round_'+str(r)+str(j)+'_out/log.dat '+args.output +'/log_'+str(r)+str(j)+'.dat')
+        os.system('rm -rf '+args.output + '/round_'+str(r)+str(j)+'_out/')
+    
+    #check if all models have been computed
+    sm = np.sum(arcis_spec[r], axis=1)
+
+    arcis_spec[r] = arcis_spec[r][sm!=0]
+    
+    crash_count=0    
+    while len(arcis_spec[r])<samples_per_round:
+        crash_count+=1
+        print('Crash ',str(crash_count))
+        remain = samples_per_round-len(arcis_spec[r])
+        print('ARCiS crashed, computing remaining ' +str(remain)+' models.')
+        logging.info('ARCiS crashed, computing remaining ' +str(remain)+' models.')
+
+        theta[len(arcis_spec[r]):] = proposal.sample((remain,))
+        np_theta[r] = theta.cpu().detach().numpy().reshape([-1, len(prior_bounds)])
+
+        arcis_spec_ac=compute(np_theta[r][len(arcis_spec[r]):])
+
+        for j in range(args.processes):
+            os.system('mv '+args.output + '/round_'+str(r)+str(j)+'_out/log.dat '+args.output +'/log_'+str(r)+str(j)+str(crash_count)+'.dat')
+            os.system('rm -rf '+args.output + '/round_'+str(r)+str(j)+'_out/')
+
+        sm_ac = np.sum(arcis_spec_ac, axis=1)
+
+        arcis_spec[r] = np.concatenate((arcis_spec[r], arcis_spec_ac[sm_ac!=0]))
+
             
     ### COMPUTE EVIDENCE
     if r>0:
@@ -524,7 +553,7 @@ with open(args.output+'/post_equal_weights.txt', 'wb') as file_post_equal_weight
     np.savetxt(file_post_equal_weights, samples[-1])
 
 fig1 = corner(samples[-1], color='rebeccapurple', show_titles=True, smooth=0.9, range=prior_bounds, labels=parnames)
-with open(args.output+'corner_'+str(r+1)+'.jpg', 'wb') as file_post_equal_corner:
+with open(args.output+'/corner_'+str(r)+'.jpg', 'wb') as file_post_equal_corner:
     plt.savefig(file_post_equal_corner, bbox_inches='tight')
 plt.close('all')
 

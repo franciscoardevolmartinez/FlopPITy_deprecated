@@ -22,7 +22,7 @@ def x2Ppoints(x, nTpoints):
     return Ppoint
 
 def simulator(parameters, directory, r, input_file, freeT, nTpoints, n, n_obs, size):
-    fname = directory+'round_'+str(r)+str(n)+'_samples.dat'
+    fname = directory+'/round_'+str(r)+str(n)+'_samples.dat'
     if freeT:
         parametergrid = np.empty([parameters.shape[0], parameters.shape[1]+nTpoints-1])
         parametergrid[:, 0:nTpoints+1] = parameters[:,0:nTpoints+1]
@@ -36,9 +36,10 @@ def simulator(parameters, directory, r, input_file, freeT, nTpoints, n, n_obs, s
     print('Running ARCiS')
     print('Computing '+str(len(parameters))+' models for process '+str(n))
     logging.info('Running ARCiS')
-    os.system('cd .. ; '+ARCiS + ' '+input_file + ' -o '+directory+'round_'+str(r)+str(n)+'_out -s parametergridfile='+fname)
+    logging.info('Computing '+str(len(parameters))+' models for process '+str(n))
+    os.system('cd .. ; '+ARCiS + ' '+input_file + ' -o '+directory+'/round_'+str(r)+str(n)+'_out -s parametergridfile='+fname)
 
-    dirx = directory + 'round_'+str(r)+str(n)+'_out/'
+    dirx = directory + '/round_'+str(r)+str(n)+'_out/'
         
     arcis_spec = np.zeros([parameters.shape[0], size])
         
@@ -73,7 +74,7 @@ def simulator(parameters, directory, r, input_file, freeT, nTpoints, n, n_obs, s
         except:
             print('Couldn\'t store model ', model_dir)
         
-        np.save(directory+'T_round_'+str(r)+'.npy',T)
-        np.save(directory+'P.npy',P)
+        np.save(directory+'/T_round_'+str(r)+'.npy',T)
+        np.save(directory+'/P.npy',P)
     
     return arcis_spec
