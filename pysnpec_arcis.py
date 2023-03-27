@@ -284,16 +284,21 @@ def preprocess(np_theta, arcis_spec):
                 with open(args.output+'/xscaler.p', 'wb') as file_xscaler:
                     pickle.dump(xscaler, file_xscaler)  
         elif args.xnorm:
+            print('No PCA, straight to xnorm')
+            logging.info('No PCA, straight to xnorm')
             xscaler = StandardScaler().fit(arcis_spec)
             with open(args.output+'/xscaler.p', 'wb') as file_xscaler:
                 pickle.dump(xscaler, file_xscaler)
 
     if args.do_pca:
+        print('Doing PCA...')
+        logging.info('Doing PCA...')
         x_i = pca.transform(arcis_spec_aug)
         if args.xnorm:
             x_f = xscaler.transform(x_i)
         else:
             x_f = x_i
+        np.save(args.output+'/preprocessed.npy', x_f)
     elif args.xnorm:
         x_f = xscaler.transform(arcis_spec_aug)
     else:
@@ -380,7 +385,7 @@ if args.resume:
 
 while r<num_rounds:
     print('\n')
-    print('\n **** Training round ', r)
+    print('\n ##### Training round ', r)
     logging.info('#####  Round '+str(r)+'  #####')
     
     # samples_per_round=max(int(args.samples_per_round*(1/1+r)),100)
@@ -499,6 +504,8 @@ while r<num_rounds:
     ### GENERATE POSTERIOR
     
     if args.do_pca:
+        print('Transforming observation...')
+        logging.info('Transforming observation...')
         default_x_pca = pca.transform(obs_spec.reshape(1,-1))
         if args.xnorm:
             default_x = xscaler.transform(default_x_pca)
