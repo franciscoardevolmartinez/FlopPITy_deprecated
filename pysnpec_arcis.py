@@ -400,6 +400,8 @@ if args.resume:
     
 # samples_per_round_hack=[100000,5000]
 
+good_rounds=0
+
 while r<num_rounds:
     print('\n')
     print('\n ##### Training round ', r)
@@ -506,7 +508,12 @@ while r<num_rounds:
         theta_aug, x = preprocess(np_theta[r], arcis_spec[r])
         reject=False
         if r>1 and abs(logZs[-1][0]-logZs[-2][0])<args.Ztol:
-            r=num_rounds
+            print('ΔZ < Ztol')
+            good_rounds+=1
+            if good_rounds==args.Zrounds:
+                r=num_rounds
+            elif good_rounds<args.Zrounds:
+                r+=1
         else:
             r+=1
 
