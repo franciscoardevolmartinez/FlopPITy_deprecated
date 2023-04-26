@@ -1,5 +1,5 @@
 # exoFlows
-Allows the user to easily train normalizing flows in multiple rounds to perform inference. Specifically written to work in conjunction with ARCiS. Tau-ReX version coming soon.
+Allows the user to easily train normalizing flows in multiple rounds to perform inference. Specifically written to work in conjunction with ARCiS. [TauREx](https://taurex3-public.readthedocs.io/en/latest/) version coming soon.
 
 ## Requirements
 [ARCiS](https://github.com/michielmin/ARCiS): Contact [Michiel Min](mailto:m.min@sron.nl).
