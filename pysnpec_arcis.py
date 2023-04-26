@@ -48,13 +48,17 @@ def parse_args():
     parser.add_argument('-blocks', type=int, default=2)
     parser.add_argument('-ynorm', action='store_false')
     parser.add_argument('-xnorm', action='store_false')
-    parser.add_argument('-Ztol', type=float, default=0.05)
+    parser.add_argument('-Ztol', type=float, default=0.5)
+    parser.add_argument('-convergence_criterion', type=str, default='absolute_error')
+    parser.add_argument('-Zrounds', type=int, default=2)
     parser.add_argument('-dropout', type=float, default=0)
     parser.add_argument('-nrepeat', type=int, default=3)
     parser.add_argument('-processes', type=int, default=1)
     parser.add_argument('-patience', type=int, default=10)
     parser.add_argument('-atoms', type=int, default=10)
     parser.add_argument('-resume', action='store_true')
+    parser.add_argument('-reuse_prior_samples', action='store_true')
+    parser.add_argument('-prior_dir', type=str)
     parser.add_argument('-dont_reject', action='store_false')
     return parser.parse_args()
 
@@ -286,6 +290,7 @@ def preprocess(np_theta, arcis_spec):
         elif args.xnorm:
             print('No PCA, straight to xnorm')
             logging.info('No PCA, straight to xnorm')
+            # print(arcis_spec)
             xscaler = StandardScaler().fit(arcis_spec)
             with open(args.output+'/xscaler.p', 'wb') as file_xscaler:
                 pickle.dump(xscaler, file_xscaler)
@@ -300,6 +305,8 @@ def preprocess(np_theta, arcis_spec):
             x_f = x_i
         np.save(args.output+'/preprocessed.npy', x_f)
     elif args.xnorm:
+        print('Normalizing features')
+        logging.info('Normalizing features')
         x_f = xscaler.transform(arcis_spec_aug)
     else:
         x_f = arcis_spec_aug
@@ -349,6 +356,11 @@ r=0
 repeat=0
 
 if args.resume:
+    # 1st check where it was left off previously
+    # check number of rounds run previously
+    
+    
+    # Now read files
     print('Reading files from previous run...')
     logging.info('Reading files from previous run...')
     print('Reading Y.p ...')
@@ -365,9 +377,12 @@ if args.resume:
     print('Reading samples.p ...')
     logging.info('Reading samples.p ...')
     samples=pickle.load(open(args.output+'/samples.p', 'rb'))
-    print('Reading evidence.p ...')
-    logging.info('Reading evidence.p ...')
-    logZs=pickle.load(open(args.output+'/evidence.p', 'rb'))
+    try:
+        print('Reading evidence.p ...')
+        logging.info('Reading evidence.p ...')
+        logZs=pickle.load(open(args.output+'/evidence.p', 'rb'))
+    except:
+        print('oops')
     print('Reading inference.p ...')
     logging.info('Reading inference.p ...')
     inference=pickle.load(open(args.output+'/inference.p', 'rb'))
@@ -382,62 +397,75 @@ if args.resume:
         logging.info('Reading pca.p ...')
         pca=pickle.load(open(args.output+'/pca.p', 'rb'))
     num_rounds+=r
+    
+# samples_per_round_hack=[100000,5000]
 
 while r<num_rounds:
     print('\n')
     print('\n ##### Training round ', r)
     logging.info('#####  Round '+str(r)+'  #####')
+    # samples_per_round = samples_per_round_hack[r]
     
     # samples_per_round=max(int(args.samples_per_round*(1/1+r)),100)
     
-    ##### DRAW SAMPLES
-    logging.info('Drawing '+str(samples_per_round)+' samples')
-    print('Samples per round: ', samples_per_round)
-    theta = proposal.sample((samples_per_round,))
-    np_theta[r] = theta.cpu().detach().numpy().reshape([-1, len(prior_bounds)])
-
-    if args.ynorm:
-        post_plot = yscaler.inverse_transform(np_theta[r])
+    if args.reuse_prior_samples and r==0:
+        print('Reusing prior samples')
+        logging.info('Reusing prior samples')
+        try:
+            arcis_spec[r] = pickle.load(open(args.prior_dir+'/arcis_spec.p', 'rb'))[0]
+            np_theta[r] = pickle.load(open(args.prior_dir+'/Y.p', 'rb'))[0]
+        except:
+            arcis_spec[r] = np.load(args.prior_dir+'/arcis_spec_round_0.npy')
+            np_theta[r] = np.load(args.prior_dir+'/Y_round_0.npy')
     else:
-        post_plot = np_theta[r]
-
-    fig1 = corner(post_plot, color='rebeccapurple', show_titles=True, smooth=0.9, range=prior_bounds, labels=parnames)
-    with open(args.output+'/corner_'+str(r)+'.jpg', 'wb') as file_corner:
-        plt.savefig(file_corner, bbox_inches='tight')
-    plt.close('all')
-
-    #### COMPUTE MODELS
-    arcis_spec[r] = compute(np_theta[r])
-    
-    for j in range(args.processes):
-        os.system('mv '+args.output + '/round_'+str(r)+str(j)+'_out/log.dat '+args.output +'/log_'+str(r)+str(j)+'.dat')
-        os.system('rm -rf '+args.output + '/round_'+str(r)+str(j)+'_out/')
-    
-    #check if all models have been computed
-    sm = np.sum(arcis_spec[r], axis=1)
-
-    arcis_spec[r] = arcis_spec[r][sm!=0]
-    
-    crash_count=0    
-    while len(arcis_spec[r])<samples_per_round:
-        crash_count+=1
-        print('Crash ',str(crash_count))
-        remain = samples_per_round-len(arcis_spec[r])
-        print('ARCiS crashed, computing remaining ' +str(remain)+' models.')
-        logging.info('ARCiS crashed, computing remaining ' +str(remain)+' models.')
-
-        theta[len(arcis_spec[r]):] = proposal.sample((remain,))
+        ##### DRAW SAMPLES
+        logging.info('Drawing '+str(samples_per_round)+' samples')
+        print('Samples per round: ', samples_per_round)
+        theta = proposal.sample((samples_per_round,))
         np_theta[r] = theta.cpu().detach().numpy().reshape([-1, len(prior_bounds)])
 
-        arcis_spec_ac=compute(np_theta[r][len(arcis_spec[r]):])
+        if args.ynorm:
+            post_plot = yscaler.inverse_transform(np_theta[r])
+        else:
+            post_plot = np_theta[r]
+
+        fig1 = corner(post_plot, color='rebeccapurple', show_titles=True, smooth=0.9, range=prior_bounds, labels=parnames)
+        with open(args.output+'/corner_'+str(r)+'.jpg', 'wb') as file_corner:
+            plt.savefig(file_corner, bbox_inches='tight')
+        plt.close('all')
+
+        #### COMPUTE MODELS
+        arcis_spec[r] = compute(np_theta[r])
 
         for j in range(args.processes):
-            os.system('mv '+args.output + '/round_'+str(r)+str(j)+'_out/log.dat '+args.output +'/log_'+str(r)+str(j)+str(crash_count)+'.dat')
+            os.system('mv '+args.output + '/round_'+str(r)+str(j)+'_out/log.dat '+args.output +'/log_'+str(r)+str(j)+'.dat')
             os.system('rm -rf '+args.output + '/round_'+str(r)+str(j)+'_out/')
 
-        sm_ac = np.sum(arcis_spec_ac, axis=1)
+        #check if all models have been computed
+        sm = np.sum(arcis_spec[r], axis=1)
 
-        arcis_spec[r] = np.concatenate((arcis_spec[r], arcis_spec_ac[sm_ac!=0]))
+        arcis_spec[r] = arcis_spec[r][sm!=0]
+
+        crash_count=0    
+        while len(arcis_spec[r])<samples_per_round:
+            crash_count+=1
+            print('Crash ',str(crash_count))
+            remain = samples_per_round-len(arcis_spec[r])
+            print('ARCiS crashed, computing remaining ' +str(remain)+' models.')
+            logging.info('ARCiS crashed, computing remaining ' +str(remain)+' models.')
+
+            theta[len(arcis_spec[r]):] = proposal.sample((remain,))
+            np_theta[r] = theta.cpu().detach().numpy().reshape([-1, len(prior_bounds)])
+
+            arcis_spec_ac=compute(np_theta[r][len(arcis_spec[r]):])
+
+            for j in range(args.processes):
+                os.system('mv '+args.output + '/round_'+str(r)+str(j)+'_out/log.dat '+args.output +'/log_'+str(r)+str(j)+str(crash_count)+'.dat')
+                os.system('rm -rf '+args.output + '/round_'+str(r)+str(j)+'_out/')
+
+            sm_ac = np.sum(arcis_spec_ac, axis=1)
+
+            arcis_spec[r] = np.concatenate((arcis_spec[r], arcis_spec_ac[sm_ac!=0]))
 
             
     ### COMPUTE EVIDENCE

@@ -73,6 +73,7 @@ def simulator(parameters, directory, r, input_file, freeT, nTpoints, n, n_obs, s
                 arcis_spec[i][sum(l[:j+1]):sum(l[:j+2])] = phasej
         except:
             print('Couldn\'t store model ', model_dir)
+            logging.info('Couldn\'t store model ', model_dir)
         
         np.save(directory+'/T_round_'+str(r)+'.npy',T)
         np.save(directory+'/P.npy',P)
