@@ -21,9 +21,9 @@ Here's a brief description of some of the most important options:
 - `device`: Used to specify the device on which the flows are trained. Can be `cpu` or `gpu`. Default: `cpu`.
 - `embedding`: Switches on a neural network (called embedding network) to reduce the dimensionality of the data. Off by default.
 - `embed_size`: The size of the embedding network's output.
-- `Ztol`: Specifies the maximum change in log(Z) to stop inference. For parameter estimation, large values (e.g. 10, set by default) are fine. For model comparison, it should be <1.
+- `Ztol`: Specifies the maximum change in log(Z) to stop inference. For parameter estimation, large values (e.g. 1, set by default) are fine. For model comparison, it should be <1.
 - `processes`: The number of parallel instances of ARCiS running to compute the training set. Can be used to speed up the inference if multiple cores are available.
-- `dont_reject`: By default, a round will be rejected if the evidence doesn't improve with respect to the previous one. This option turns it off. This is fine for parameter estimation.
+- `dont_reject`: By default, a round will be rejected if the evidence doesn't improve with respect to the previous one. This option turns it off. 
 
 
 ### Output
