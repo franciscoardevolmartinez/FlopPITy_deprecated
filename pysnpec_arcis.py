@@ -34,7 +34,7 @@ supertic = time()
 def parse_args():
     parser = argparse.ArgumentParser(description=('Train SNPE_C'))
     parser.add_argument('-input', type=str, help='ARCiS input file for the retrieval')
-    parser.add_argument('-output', type=str, default='output/', help='Directory to save output')
+    parser.add_argument('-output', type=str, default='output', help='Directory to save output')
     parser.add_argument('-device', type=str, default='cpu', help='Device to use for training. Default: CPU.')
     parser.add_argument('-num_rounds', type=int, default=10, help='Number of rounds to train for. Default: 10.')
     parser.add_argument('-samples_per_round', type=int, default=1000, help='Number of samples to draw for training each round. Default: 1000.')
@@ -181,8 +181,23 @@ def compute(np_theta):
     
     return arcis_spec
 
+##### CREATE FOLDERS ######
+
 p = Path(args.output)
-p.mkdir(parents=True, exist_ok=True)
+try:
+    p.mkdir(parents=True, exist_ok=False)
+except:
+    print('Folder already exists! Renaming to \''+args.output+'_new\'')
+    args.output+='_new'
+    p = Path(args.output)
+
+imgs = Path(args.output+'/Figures')
+imgs.mkdir(parents=False, exist_ok=True)
+
+arcis_logs = Path(args.output+'/ARCiS_logs')
+arcis_logs.mkdir(parents=False, exist_ok=True)
+
+##########################
 
 logging.basicConfig(filename=args.output+'/log.log', filemode='a', format='%(asctime)s %(message)s', 
                 datefmt='%H:%M:%S', level=logging.DEBUG)
@@ -432,7 +447,7 @@ while r<num_rounds:
             post_plot = np_theta[r]
 
         fig1 = corner(post_plot, color='rebeccapurple', show_titles=True, smooth=0.9, range=prior_bounds, labels=parnames)
-        with open(args.output+'/corner_'+str(r)+'.jpg', 'wb') as file_corner:
+        with open(args.output+'/Figures/corner_'+str(r)+'.jpg', 'wb') as file_corner:
             plt.savefig(file_corner, bbox_inches='tight')
         plt.close('all')
 
@@ -440,8 +455,9 @@ while r<num_rounds:
         arcis_spec[r] = compute(np_theta[r])
 
         for j in range(args.processes):
-            os.system('mv '+args.output + '/round_'+str(r)+str(j)+'_out/log.dat '+args.output +'/log_'+str(r)+str(j)+'.dat')
+            os.system('mv '+args.output + '/round_'+str(r)+str(j)+'_out/log.dat '+args.output +'/ARCiS_logs/log_'+str(r)+str(j)+'.dat')
             os.system('rm -rf '+args.output + '/round_'+str(r)+str(j)+'_out/')
+            os.system('rm -rf '+args.output + '/round_'+str(r)+str(j)+'_samples.dat')
 
         #check if all models have been computed
         sm = np.sum(arcis_spec[r], axis=1)
@@ -462,8 +478,9 @@ while r<num_rounds:
             arcis_spec_ac=compute(np_theta[r][len(arcis_spec[r]):])
 
             for j in range(args.processes):
-                os.system('mv '+args.output + '/round_'+str(r)+str(j)+'_out/log.dat '+args.output +'/log_'+str(r)+str(j)+str(crash_count)+'.dat')
+                os.system('mv '+args.output + '/round_'+str(r)+str(j)+'_out/log.dat '+args.output +'/ARCiS_logs/log_'+str(r)+str(j)+str(crash_count)+'.dat')
                 os.system('rm -rf '+args.output + '/round_'+str(r)+str(j)+'_out/')
+                os.system('rm -rf '+args.output + '/round_'+str(r)+str(j)+'_samples.dat')
 
             sm_ac = np.sum(arcis_spec_ac, axis=1)
 
@@ -595,7 +612,7 @@ with open(args.output+'/post_equal_weights.txt', 'wb') as file_post_equal_weight
     np.savetxt(file_post_equal_weights, samples[-1])
 
 fig1 = corner(samples[-1], color='rebeccapurple', show_titles=True, smooth=0.9, range=prior_bounds, labels=parnames)
-with open(args.output+'/corner_'+str(r)+'.jpg', 'wb') as file_post_equal_corner:
+with open(args.output+'/Figures/corner_'+str(r)+'.jpg', 'wb') as file_post_equal_corner:
     plt.savefig(file_post_equal_corner, bbox_inches='tight')
 plt.close('all')
 
