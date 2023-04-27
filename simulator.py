@@ -22,7 +22,7 @@ def x2Ppoints(x, nTpoints):
             Ppoint[j,i] = 10**(np.log10(Ppoint[j,i-1]) + np.log10(Pmax/Ppoint[j,i-1]) * (1- x[j]**(1/(nTpoints-i+1))))
     return Ppoint
 
-def simulator(parameters, directory, r, input_file, freeT, nTpoints, n, n_obs, size):
+def simulator(parameters, directory, r, input_file, freeT, nTpoints, nr, n, n_obs, size):
     fname = directory+'/round_'+str(r)+str(n)+'_samples.dat'
     if freeT:
         parametergrid = np.empty([parameters.shape[0], parameters.shape[1]+nTpoints-1])
@@ -47,8 +47,8 @@ def simulator(parameters, directory, r, input_file, freeT, nTpoints, n, n_obs, s
     print('Reading ARCiS output')
     logging.info('Reading ARCiS output')
     
-    T = np.zeros([parameters.shape[0], 25])
-    P = np.zeros(25)
+    T = np.zeros([parameters.shape[0], nr])
+    P = np.zeros(nr)
     
     for i in trange(parameters.shape[0]):
         if i+1<10:

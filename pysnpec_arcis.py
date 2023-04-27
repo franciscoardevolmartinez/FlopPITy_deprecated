@@ -166,12 +166,12 @@ def compute(np_theta):
         params = np_theta
     if freeT:
         for i in range(args.processes-1):
-            parargs.append((params[i*samples_per_process:(i+1)*samples_per_process], args.output, r, args.input, freeT, nTpoints, i, len(obs), len(obs_spec)))
-        parargs.append((params[(args.processes-1)*samples_per_process:], args.output, r, args.input, freeT, nTpoints, args.processes-1, len(obs), len(obs_spec)))
+            parargs.append((params[i*samples_per_process:(i+1)*samples_per_process], args.output, r, args.input, freeT, nTpoints, nr,i, len(obs), len(obs_spec)))
+        parargs.append((params[(args.processes-1)*samples_per_process:], args.output, r, args.input, freeT, nTpoints, nr,args.processes-1, len(obs), len(obs_spec)))
     else:
         for i in range(args.processes-1):
-            parargs.append((params[i*samples_per_process:(i+1)*samples_per_process], args.output, r, args.input, freeT, 0, i, len(obs), len(obs_spec)))
-        parargs.append((params[(args.processes-1)*samples_per_process:], args.output, r, args.input, freeT, 0, args.processes-1, len(obs), len(obs_spec)))
+            parargs.append((params[i*samples_per_process:(i+1)*samples_per_process], args.output, r, args.input, freeT, 0, nr, i, len(obs), len(obs_spec)))
+        parargs.append((params[(args.processes-1)*samples_per_process:], args.output, r, args.input, freeT, 0,nr, args.processes-1, len(obs), len(obs_spec)))
 
     tic=time()
     with Pool(processes = args.processes) as pool:
@@ -231,6 +231,10 @@ parnames=[]
 prior_bounds=[]
 i=0
 while i<len(clean_in):
+    if 'nr=' in clean_in[i]:
+        nr = int(clean_in[i][3:])
+    elif 'nr =' in clean_in[i]:
+        nr = int(clean_in[i][4:])
     if 'fitpar:keyword' in clean_in[i]:
         if clean_in[i][16:-1] == 'tprofile':
             freeT=True
@@ -499,7 +503,7 @@ while r<num_rounds:
         print('\n')
         logZs.append(logZ)
     
-    if args.dont_reject and r>1 and logZs[-1][0]<logZs[-2][0] and logZs[-1][1]<logZs[-2][1]: #change logZs[-2][2] to logZs[-2][0]
+    if args.dont_reject and r>1 and logZs[-1][0]<logZs[-2][0]: # and logZs[-1][1]<logZs[-2][1]: #change logZs[-2][2] to logZs[-2][0]
         # If evidence doesn't improve we repeat last step
         repeat+=1
         print('Round rejected, repeating previous round. This round has been rejected '+str(repeat)+' times.')
