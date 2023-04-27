@@ -49,7 +49,8 @@ def parse_args():
     parser.add_argument('-ynorm', action='store_false')
     parser.add_argument('-xnorm', action='store_false')
     parser.add_argument('-Ztol', type=float, default=0.5)
-    parser.add_argument('-convergence_criterion', type=str, default='absolute_error')
+    parser.add_argument('-convergence_criterion', type=str, default='absolute_error', help='Other options are: strictly_positive, ')
+    parser.add_argument('-retrain_from_scratch', action='store_true')
     parser.add_argument('-Zrounds', type=int, default=2)
     parser.add_argument('-dropout', type=float, default=0)
     parser.add_argument('-nrepeat', type=int, default=3)
@@ -183,13 +184,14 @@ def compute(np_theta):
 
 ##### CREATE FOLDERS ######
 
-p = Path(args.output)
 try:
+    p = Path(args.output)
     p.mkdir(parents=True, exist_ok=False)
 except:
     print('Folder already exists! Renaming to \''+args.output+'_new\'')
     args.output+='_new'
     p = Path(args.output)
+    p.mkdir(parents=True, exist_ok=False)
 
 imgs = Path(args.output+'/Figures')
 imgs.mkdir(parents=False, exist_ok=True)
@@ -415,7 +417,7 @@ if args.resume:
     
 # samples_per_round_hack=[100000,5000]
 
-good_rounds=0
+good_rounds=[]
 
 while r<num_rounds:
     print('\n')
@@ -497,7 +499,7 @@ while r<num_rounds:
         print('\n')
         logZs.append(logZ)
     
-    if args.dont_reject and r>1 and logZs[-1][0]<logZs[-2][0]:
+    if args.dont_reject and r>1 and logZs[-1][0]<logZs[-2][0] and logZs[-1][1]<logZs[-2][1]: #change logZs[-2][2] to logZs[-2][0]
         # If evidence doesn't improve we repeat last step
         repeat+=1
         print('Round rejected, repeating previous round. This round has been rejected '+str(repeat)+' times.')
@@ -526,13 +528,17 @@ while r<num_rounds:
         reject=False
         if r>1 and abs(logZs[-1][0]-logZs[-2][0])<args.Ztol:
             print('ΔZ < Ztol')
-            good_rounds+=1
-            if good_rounds==args.Zrounds:
+            logging.info('ΔZ < Ztol')
+            good_rounds.append(1)
+            if sum(good_rounds[-args.Zrounds:])==args.Zrounds:
+                print('Last '+str(args.Zrounds)+'rounds have had ΔZ < Ztol. Ending inference.')
+                logging.info('Last '+str(args.Zrounds)+'rounds have had ΔZ < Ztol. Ending inference.')
                 r=num_rounds
-            elif good_rounds<args.Zrounds:
+            elif sum(good_rounds[-args.Zrounds:])<args.Zrounds:
                 r+=1
         else:
             r+=1
+            good_rounds.append(0)
 
     ### TRAIN
     
@@ -551,7 +557,7 @@ while r<num_rounds:
         with open(args.output+'/inference.p', 'wb') as file_inference:
             pickle.dump(inference, file_inference)
             
-    posterior_estimator = inference_object.train(show_train_summary=True, stop_after_epochs=args.patience, num_atoms=args.atoms, force_first_round_loss=True)
+    posterior_estimator = inference_object.train(show_train_summary=True, stop_after_epochs=args.patience, num_atoms=args.atoms, force_first_round_loss=True, retrain_from_scratch=args.retrain_from_scratch)
     
     ### GENERATE POSTERIOR
     
