@@ -38,7 +38,7 @@ def simulator(parameters, directory, r, input_file, freeT, nTpoints, nr, n, n_ob
     print('Computing '+str(len(parameters))+' models for process '+str(n))
     logging.info('Running ARCiS')
     logging.info('Computing '+str(len(parameters))+' models for process '+str(n))
-    os.system('cd .. ; '+ARCiS + ' '+input_file + ' -o '+directory+'/round_'+str(r)+str(n)+'_out -s parametergridfile='+fname)
+    os.system('cd ; '+ARCiS + ' '+input_file + ' -o '+directory+'/round_'+str(r)+str(n)+'_out -s parametergridfile='+fname)
 
     dirx = directory + '/round_'+str(r)+str(n)+'_out/'
         
