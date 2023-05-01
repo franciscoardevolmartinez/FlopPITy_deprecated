@@ -184,14 +184,14 @@ def compute(np_theta):
 
 ##### CREATE FOLDERS ######
 
-try:
-    p = Path(args.output)
-    p.mkdir(parents=True, exist_ok=False)
-except:
-    print('Folder already exists! Renaming to \''+args.output+'_new\'')
-    args.output+='_new'
-    p = Path(args.output)
-    p.mkdir(parents=True, exist_ok=False)
+# try:
+p = Path(args.output)
+p.mkdir(parents=True, exist_ok=True)
+# except:
+#     print('Folder already exists! Renaming to \''+args.output+'_new\'')
+#     args.output+='_new'
+#     p = Path(args.output)
+#     p.mkdir(parents=True, exist_ok=False)
 
 imgs = Path(args.output+'/Figures')
 imgs.mkdir(parents=False, exist_ok=True)
@@ -407,6 +407,7 @@ if args.resume:
     print('Reading inference.p ...')
     logging.info('Reading inference.p ...')
     inference=pickle.load(open(args.output+'/inference.p', 'rb'))
+    inference_object=inference
     print('Reading xscaler.p ...')
     logging.info('Reading xscaler.p ...')
     xscaler=pickle.load(open(args.output+'/xscaler.p', 'rb'))
@@ -503,7 +504,7 @@ while r<num_rounds:
         print('\n')
         logZs.append(logZ)
     
-    if args.dont_reject and r>1 and logZs[-1][0]<logZs[-2][0]: # and logZs[-1][1]<logZs[-2][1]: #change logZs[-2][2] to logZs[-2][0]
+    if args.dont_reject and r>1 and logZs[-1][0]<logZs[-2][0] and logZs[-1][1]<logZs[-2][1]: #change logZs[-2][2] to logZs[-2][0]
         # If evidence doesn't improve we repeat last step
         repeat+=1
         print('Round rejected, repeating previous round. This round has been rejected '+str(repeat)+' times.')
