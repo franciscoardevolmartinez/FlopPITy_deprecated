@@ -470,6 +470,7 @@ while r<num_rounds:
         sm = np.sum(arcis_spec[r], axis=1)
 
         arcis_spec[r] = arcis_spec[r][sm!=0]
+        np_theta[r] = np_theta[r][sm!=0]
 
         crash_count=0    
         while len(arcis_spec[r])<samples_per_round:
@@ -479,10 +480,10 @@ while r<num_rounds:
             print('ARCiS crashed, computing remaining ' +str(remain)+' models.')
             logging.info('ARCiS crashed, computing remaining ' +str(remain)+' models.')
 
-            theta[len(arcis_spec[r]):] = proposal.sample((remain,))
-            np_theta[r] = theta.cpu().detach().numpy().reshape([-1, len(prior_bounds)])
+            theta_ac = proposal.sample((remain,))
+            np_theta_ac = theta.cpu().detach().numpy().reshape([-1, len(prior_bounds)])
 
-            arcis_spec_ac=compute(np_theta[r][len(arcis_spec[r]):])
+            arcis_spec_ac=compute(np_theta_ac)
 
             for j in range(args.processes):
                 os.system('mv '+args.output + '/round_'+str(r)+str(j)+'_out/log.dat '+args.output +'/ARCiS_logs/log_'+str(r)+str(j)+str(crash_count)+'.dat')
@@ -492,6 +493,7 @@ while r<num_rounds:
             sm_ac = np.sum(arcis_spec_ac, axis=1)
 
             arcis_spec[r] = np.concatenate((arcis_spec[r], arcis_spec_ac[sm_ac!=0]))
+            np_theta[r] = np.concatenate((np_theta[r], np_theta_ac[sm_ac!=0]))
 
             
     ### COMPUTE EVIDENCE
