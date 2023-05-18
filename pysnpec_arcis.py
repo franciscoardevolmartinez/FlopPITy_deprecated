@@ -481,7 +481,7 @@ while r<num_rounds:
             logging.info('ARCiS crashed, computing remaining ' +str(remain)+' models.')
 
             theta_ac = proposal.sample((remain,))
-            np_theta_ac = theta.cpu().detach().numpy().reshape([-1, len(prior_bounds)])
+            np_theta_ac = theta_ac.cpu().detach().numpy().reshape([-1, len(prior_bounds)])
 
             arcis_spec_ac=compute(np_theta_ac)
 
@@ -559,10 +559,18 @@ while r<num_rounds:
     tic = time()
     logging.info('Training SNPE...')
     print('Training SNPE...')
+    
+    
+    ### IF ROUND IS REJECTED, 'IMPROVEMENT' IN TRAINING SHOULD ALSO BE REJECTED ####
+    ###  
+    ###   FIX THIS!!!!!!
+    
     if not reject:
         inference_object = inference.append_simulations(theta_aug, x, proposal=proposal)
         with open(args.output+'/inference.p', 'wb') as file_inference:
             pickle.dump(inference, file_inference)
+            
+    ##################################################
             
     posterior_estimator = inference_object.train(show_train_summary=True, stop_after_epochs=args.patience, num_atoms=args.atoms, force_first_round_loss=True, retrain_from_scratch=args.retrain_from_scratch)
     

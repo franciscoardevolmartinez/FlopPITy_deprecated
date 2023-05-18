@@ -2,6 +2,8 @@
 #!/usr/bin/env python3
 
 ARCiS = 'ARCiS'
+# ARCiS = 'ARCiS_phot'
+# ARCiS = 'ARCiS_clouds'
 
 import sys
 import warnings
