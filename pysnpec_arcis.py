@@ -55,12 +55,13 @@ def parse_args():
     parser.add_argument('-dropout', type=float, default=0)
     parser.add_argument('-nrepeat', type=int, default=3)
     parser.add_argument('-processes', type=int, default=1)
-    parser.add_argument('-patience', type=int, default=10)
-    parser.add_argument('-atoms', type=int, default=10)
+    parser.add_argument('-patience', type=int, default=20)
+    parser.add_argument('-atoms', type=int, default=100)
     parser.add_argument('-resume', action='store_true')
     parser.add_argument('-reuse_prior_samples', action='store_true')
     parser.add_argument('-prior_dir', type=str)
     parser.add_argument('-dont_reject', action='store_false')
+    parser.add_argument('-npew', type=int, default=5000)
     return parser.parse_args()
 
 ### (Log) likelihood. Necessary to compute (log) evidence
@@ -605,7 +606,7 @@ while r<num_rounds:
     if not reject:
         print('Saving samples ')
         logging.info('Saving samples ')
-        tsamples = posterior.sample((5000,))
+        tsamples = posterior.sample((args.npew,))
         if args.ynorm:
             samples.append(yscaler.inverse_transform(tsamples.cpu().detach().numpy()))
         else:
