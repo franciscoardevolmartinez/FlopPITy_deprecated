@@ -78,7 +78,10 @@ def evidence(posterior, prior, samples, Y, obs, err):
     if args.do_pca:
         default_x = xscaler.transform(pca.transform(obs.reshape(1,-1)))
     else:
-        default_x = xscaler.transform(obs.reshape(1,-1))
+        if args.xnorm:
+            default_x = xscaler.transform(obs.reshape(1,-1))
+        else:
+            default_x = obs.reshape(1,-1)
     P = posterior.log_prob(torch.tensor(Y), x=default_x)
     pi = prior.log_prob(torch.tensor(Y))
     logZ =np.empty(3)
@@ -354,7 +357,7 @@ prior = utils.BoxUniform(low=prior_min.to(device, non_blocking=True), high=prior
 num_rounds = args.num_rounds
 
 neural_posterior = posterior_nn(model='nsf', hidden_features=args.hidden, num_transforms=args.transforms, num_bins=args.bins, num_blocks=args.blocks,
-                                z_score_x='none', z_score_y='none', use_batch_norm=True, dropout_probability=args.dropout, embedding_net=embedding_net)
+                                z_score_x='none', z_score_y='none', use_batch_norm=True, dropout_probability=args.dropout) #delete embedding_net #z_score='independent'
 
 inference = SNPE_C(prior = prior, density_estimator=neural_posterior, device=device)
 
@@ -566,6 +569,9 @@ while r<num_rounds:
     ###  
     ###   FIX THIS!!!!!!
     
+    with open(args.output+'/x.p', 'wb') as file_x:
+        pickle.dump(x, file_x)
+    
     if not reject:
         inference_object = inference.append_simulations(theta_aug, x, proposal=proposal)
         with open(args.output+'/inference.p', 'wb') as file_inference:
@@ -573,7 +579,14 @@ while r<num_rounds:
             
     ##################################################
             
-    posterior_estimator = inference_object.train(show_train_summary=True, stop_after_epochs=args.patience, num_atoms=args.atoms, force_first_round_loss=True, retrain_from_scratch=args.retrain_from_scratch)
+    posterior_estimator = inference_object.train(show_train_summary=True, stop_after_epochs=args.patience, num_atoms=args.atoms, force_first_round_loss=True, retrain_from_scratch=args.retrain_from_scratch, use_combined_loss=True) #use_combined_loss
+    
+    plt.figure(figsize=(10,5))
+    for i in range(10):
+        plt.plot()
+    with open(args.output+'/Figures/corner_'+str(r)+'.jpg', 'wb') as file_corner:
+        plt.savefig(file_corner, bbox_inches='tight')
+    plt.close('all')
     
     ### GENERATE POSTERIOR
     
