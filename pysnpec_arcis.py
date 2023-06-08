@@ -356,10 +356,12 @@ prior = utils.BoxUniform(low=prior_min.to(device, non_blocking=True), high=prior
 
 num_rounds = args.num_rounds
 
-neural_posterior = posterior_nn(model='nsf', hidden_features=args.hidden, num_transforms=args.transforms, num_bins=args.bins, num_blocks=args.blocks,
-                                z_score_x='none', z_score_y='none', use_batch_norm=True, dropout_probability=args.dropout, embedding_net=embedding_net) #delete embedding_net #z_score='independent'
+# neural_posterior = posterior_nn(model='nsf', hidden_features=args.hidden, num_transforms=args.transforms, num_bins=args.bins, num_blocks=args.blocks,
+#                                 z_score_x='none', z_score_y='none', use_batch_norm=True, dropout_probability=args.dropout, embedding_net=embedding_net) #delete embedding_net #z_score='independent'
 
-inference = SNPE_C(prior = prior, density_estimator='nsf', device=device)  ### put this back when finished
+neural_posterior = posterior_nn(model='nsf', embedding_net=embedding_net)
+
+inference = SNPE_C(prior = prior, density_estimator=neural_posterior, device=device)  ### put this back when finished
 
 samples_per_round = args.samples_per_round
 
