@@ -76,7 +76,10 @@ def evidence(posterior, prior, samples, Y, obs, err):
     for j in range(len(samples)):
         L[j] = likelihood(obs, err, samples[j])
     if args.do_pca:
-        default_x = xscaler.transform(pca.transform(obs.reshape(1,-1)))
+        if args.xnorm:
+            default_x = xscaler.transform(pca.transform(obs.reshape(1,-1)))
+        else:
+            default_x = pca.transform(obs.reshape(1,-1))
     else:
         if args.xnorm:
             default_x = xscaler.transform(obs.reshape(1,-1))
