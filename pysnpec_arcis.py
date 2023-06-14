@@ -362,7 +362,7 @@ num_rounds = args.num_rounds
 # neural_posterior = posterior_nn(model='nsf', hidden_features=args.hidden, num_transforms=args.transforms, num_bins=args.bins, num_blocks=args.blocks,
 #                                 z_score_x='none', z_score_y='none', use_batch_norm=True, dropout_probability=args.dropout, embedding_net=embedding_net) #delete embedding_net #z_score='independent'
 
-neural_posterior = posterior_nn(model='nsf', embedding_net=embedding_net)
+neural_posterior = posterior_nn(model='nsf', embedding_net=embedding_net, use_batch_norm=True, dropout_probability=args.dropout)
 
 inference = SNPE_C(prior = prior, density_estimator=neural_posterior, device=device)  ### put this back when finished
 
@@ -417,12 +417,14 @@ if args.resume:
     logging.info('Reading inference.p ...')
     inference=pickle.load(open(args.output+'/inference.p', 'rb'))
     inference_object=inference
-    print('Reading xscaler.p ...')
-    logging.info('Reading xscaler.p ...')
-    xscaler=pickle.load(open(args.output+'/xscaler.p', 'rb'))
+    if args.xnorm:
+        print('Reading xscaler.p ...')
+        logging.info('Reading xscaler.p ...')
+        xscaler=pickle.load(open(args.output+'/xscaler.p', 'rb'))
     print('Reading samples.p ...')
     logging.info('Reading samples.p ...')
-    yscaler=pickle.load(open(args.output+'/yscaler.p', 'rb'))
+    if args.ynorm:
+        yscaler=pickle.load(open(args.output+'/yscaler.p', 'rb'))
     if args.do_pca:
         print('Reading pca.p ...')
         logging.info('Reading pca.p ...')
