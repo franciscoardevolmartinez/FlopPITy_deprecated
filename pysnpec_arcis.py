@@ -447,202 +447,204 @@ while r<num_rounds:
         print('Reusing prior samples')
         logging.info('Reusing prior samples')
         try:
-            arcis_spec[r] = pickle.load(open(args.prior_dir+'/arcis_spec.p', 'rb'))[0]
-            np_theta[r] = pickle.load(open(args.prior_dir+'/Y.p', 'rb'))[0]
+            arcis_spec[r] = pickle.load(open(args.prior_dir+'/arcis_spec.p', 'rb'))[0][:samples_per_round]
+            np_theta[r] = pickle.load(open(args.prior_dir+'/Y.p', 'rb'))[0][:samples_per_round]
         except:
             arcis_spec[r] = np.load(args.prior_dir+'/arcis_spec_round_0.npy')
             np_theta[r] = np.load(args.prior_dir+'/Y_round_0.npy')
     else:
+        
+        if not args.resume:
         ##### DRAW SAMPLES
-        logging.info('Drawing '+str(samples_per_round)+' samples')
-        print('Samples per round: ', samples_per_round)
-        theta = proposal.sample((samples_per_round,))
-        np_theta[r] = theta.cpu().detach().numpy().reshape([-1, len(prior_bounds)])
+            logging.info('Drawing '+str(samples_per_round)+' samples')
+            print('Samples per round: ', samples_per_round)
+            theta = proposal.sample((samples_per_round,))
+            np_theta[r] = theta.cpu().detach().numpy().reshape([-1, len(prior_bounds)])
 
-        if args.ynorm:
-            post_plot = yscaler.inverse_transform(np_theta[r])
+            if args.ynorm:
+                post_plot = yscaler.inverse_transform(np_theta[r])
+            else:
+                post_plot = np_theta[r]
+
+            fig1 = corner(post_plot, color='rebeccapurple', show_titles=True, smooth=0.9, range=prior_bounds, labels=parnames)
+            with open(args.output+'/Figures/corner_'+str(r)+'.jpg', 'wb') as file_corner:
+                plt.savefig(file_corner, bbox_inches='tight')
+            plt.close('all')
+
+            #### COMPUTE MODELS
+            arcis_spec[r] = compute(np_theta[r])
+
+            for j in range(args.processes):
+                os.system('mv '+args.output + '/round_'+str(r)+str(j)+'_out/log.dat '+args.output +'/ARCiS_logs/log_'+str(r)+str(j)+'.dat')
+                os.system('rm -rf '+args.output + '/round_'+str(r)+str(j)+'_out/')
+                os.system('rm -rf '+args.output + '/round_'+str(r)+str(j)+'_samples.dat')
+
+            #check if all models have been computed
+            sm = np.sum(arcis_spec[r], axis=1)
+
+            arcis_spec[r] = arcis_spec[r][sm!=0]
+            np_theta[r] = np_theta[r][sm!=0]
+
+            crash_count=0    
+            while len(arcis_spec[r])<samples_per_round:
+                crash_count+=1
+                print('Crash ',str(crash_count))
+                remain = samples_per_round-len(arcis_spec[r])
+                print('ARCiS crashed, computing remaining ' +str(remain)+' models.')
+                logging.info('ARCiS crashed, computing remaining ' +str(remain)+' models.')
+
+                theta_ac = proposal.sample((remain,))
+                np_theta_ac = theta_ac.cpu().detach().numpy().reshape([-1, len(prior_bounds)])
+
+                arcis_spec_ac=compute(np_theta_ac)
+
+                for j in range(args.processes):
+                    os.system('mv '+args.output + '/round_'+str(r)+str(j)+'_out/log.dat '+args.output +'/ARCiS_logs/log_'+str(r)+str(j)+str(crash_count)+'.dat')
+                    os.system('rm -rf '+args.output + '/round_'+str(r)+str(j)+'_out/')
+                    os.system('rm -rf '+args.output + '/round_'+str(r)+str(j)+'_samples.dat')
+
+                sm_ac = np.sum(arcis_spec_ac, axis=1)
+
+                arcis_spec[r] = np.concatenate((arcis_spec[r], arcis_spec_ac[sm_ac!=0]))
+                np_theta[r] = np.concatenate((np_theta[r], np_theta_ac[sm_ac!=0]))
+
+    if len(posteriors)<len(arcis_spec):
+        ### COMPUTE EVIDENCE
+        if r>0:
+            logging.info('Computing evidence...')
+            logZ = evidence(posteriors[-1], prior, arcis_spec[r], np_theta[r], obs_spec, noise_spec)
+            print('\n')
+            print('ln (Z) = '+ str(round(logZ[0], 2))+' ('+str(round(logZ[1],2))+', '+str(round(logZ[2],2))+')')
+            logging.info('ln (Z) = '+ str(round(logZ[0], 2))+' ('+str(round(logZ[1],2))+', '+str(round(logZ[2],2))+')')
+            print('\n')
+            logZs.append(logZ)
+
+        if args.dont_reject and r>1 and logZs[-1][0]<logZs[-2][0] and logZs[-1][1]<logZs[-2][1]: #change logZs[-2][2] to logZs[-2][0]
+            # If evidence doesn't improve we repeat last step
+            repeat+=1
+            print('Round rejected, repeating previous round. This round has been rejected '+str(repeat)+' times.')
+            logging.info('Round rejected, repeating previous round. This round has been rejected '+str(repeat)+' times.')
+            logZs.pop(-1)
+            posteriors.pop(-1)
+            del arcis_spec[r]
+            del np_theta[r]
+            # theta_aug, x = preprocess(np_theta[r-1], arcis_spec[r-1])
+            reject=True
+            if repeat>args.nrepeat:
+                print('This round has been rejected the maximum number of times. Ending inference.')
+                logging.info('This round has been rejected the maximum number of times. Ending inference.')
+                break
         else:
-            post_plot = np_theta[r]
+            repeat=0
+            if r>0:
+                with open(args.output+'/evidence.p', 'wb') as file_evidence:
+                    print('Saving evidence...')
+                    logging.info('Saving evidence...')
+                    pickle.dump(logZs, file_evidence)
+            ### PREPROCESS DATA
+            print('Preprocessing data...')
+            logging.info('Preprocessing data...')
+            theta_aug, x = preprocess(np_theta[r], arcis_spec[r])
+            reject=False
+            if r>1 and abs(logZs[-1][0]-logZs[-2][0])<args.Ztol:
+                print('ΔZ < Ztol')
+                logging.info('ΔZ < Ztol')
+                good_rounds.append(1)
+                if sum(good_rounds[-args.Zrounds:])==args.Zrounds:
+                    print('Last '+str(args.Zrounds)+'rounds have had ΔZ < Ztol. Ending inference.')
+                    logging.info('Last '+str(args.Zrounds)+'rounds have had ΔZ < Ztol. Ending inference.')
+                    r=num_rounds
+                elif sum(good_rounds[-args.Zrounds:])<args.Zrounds:
+                    r+=1
+            else:
+                r+=1
+                good_rounds.append(0)
 
-        fig1 = corner(post_plot, color='rebeccapurple', show_titles=True, smooth=0.9, range=prior_bounds, labels=parnames)
+        ### TRAIN
+
+        logging.info('Saving training examples...')
+        print('Saving training examples...')
+        with open(args.output+'/arcis_spec.p', 'wb') as file_arcis_spec:
+            pickle.dump(arcis_spec, file_arcis_spec)
+        with open(args.output+'/Y.p', 'wb') as file_np_theta:
+            pickle.dump(np_theta, file_np_theta)
+
+        tic = time()
+        logging.info('Training SNPE...')
+        print('Training SNPE...')
+
+
+        ### IF ROUND IS REJECTED, 'IMPROVEMENT' IN TRAINING SHOULD ALSO BE REJECTED ####
+        ###  
+        ###   FIX THIS!!!!!!
+
+        with open(args.output+'/x.p', 'wb') as file_x:
+            pickle.dump(x, file_x)
+
+        if not reject:
+            inference_object = inference.append_simulations(theta_aug, x, proposal=proposal)
+            with open(args.output+'/inference.p', 'wb') as file_inference:
+                pickle.dump(inference, file_inference)
+
+        ##################################################
+
+        posterior_estimator = inference_object.train(show_train_summary=True, stop_after_epochs=args.patience, num_atoms=args.atoms, force_first_round_loss=True, retrain_from_scratch=args.retrain_from_scratch, use_combined_loss=True) #use_combined_loss
+
+        plt.figure(figsize=(10,5))
+        for i in range(10):
+            plt.plot()
         with open(args.output+'/Figures/corner_'+str(r)+'.jpg', 'wb') as file_corner:
             plt.savefig(file_corner, bbox_inches='tight')
         plt.close('all')
 
-        #### COMPUTE MODELS
-        arcis_spec[r] = compute(np_theta[r])
+        ### GENERATE POSTERIOR
 
-        for j in range(args.processes):
-            os.system('mv '+args.output + '/round_'+str(r)+str(j)+'_out/log.dat '+args.output +'/ARCiS_logs/log_'+str(r)+str(j)+'.dat')
-            os.system('rm -rf '+args.output + '/round_'+str(r)+str(j)+'_out/')
-            os.system('rm -rf '+args.output + '/round_'+str(r)+str(j)+'_samples.dat')
+        if args.do_pca:
+            print('Transforming observation...')
+            logging.info('Transforming observation...')
+            default_x_pca = pca.transform(obs_spec.reshape(1,-1))
+            if args.xnorm:
+                default_x = xscaler.transform(default_x_pca)
+            else:
+                default_x = default_x_pca
+        elif args.xnorm:
+            default_x = xscaler.transform(obs_spec.reshape(1,-1))
+        else:
+            default_x = obs_spec.reshape(1,-1)
 
-        #check if all models have been computed
-        sm = np.sum(arcis_spec[r], axis=1)
+        print('\n Time elapsed: '+str(time()-tic))
+        logging.info('Time elapsed: '+str(time()-tic))
+        posterior = inference_object.build_posterior(sample_with='rejection').set_default_x(default_x)
+        posteriors.append(posterior)
+        print('Saving posteriors ')
+        logging.info('Saving posteriors ')
+        with open(args.output+'/posteriors.pt', 'wb') as file_posteriors:
+            torch.save(posteriors, file_posteriors)
+        proposal = posterior
 
-        arcis_spec[r] = arcis_spec[r][sm!=0]
-        np_theta[r] = np_theta[r][sm!=0]
 
-        crash_count=0    
-        while len(arcis_spec[r])<samples_per_round:
-            crash_count+=1
-            print('Crash ',str(crash_count))
-            remain = samples_per_round-len(arcis_spec[r])
-            print('ARCiS crashed, computing remaining ' +str(remain)+' models.')
-            logging.info('ARCiS crashed, computing remaining ' +str(remain)+' models.')
+        ### DRAW 5000 SAMPLES (JUST FOR PLOTTING)
 
-            theta_ac = proposal.sample((remain,))
-            np_theta_ac = theta_ac.cpu().detach().numpy().reshape([-1, len(prior_bounds)])
+        if not reject:
+            print('Saving samples ')
+            logging.info('Saving samples ')
+            tsamples = posterior.sample((args.npew,))
+            if args.ynorm:
+                samples.append(yscaler.inverse_transform(tsamples.cpu().detach().numpy()))
+            else:
+                samples.append(tsamples.cpu().detach().numpy())
 
-            arcis_spec_ac=compute(np_theta_ac)
+            with open(args.output+'/samples.p', 'wb') as file_samples:
+                pickle.dump(samples, file_samples)
 
-            for j in range(args.processes):
-                os.system('mv '+args.output + '/round_'+str(r)+str(j)+'_out/log.dat '+args.output +'/ARCiS_logs/log_'+str(r)+str(j)+str(crash_count)+'.dat')
-                os.system('rm -rf '+args.output + '/round_'+str(r)+str(j)+'_out/')
-                os.system('rm -rf '+args.output + '/round_'+str(r)+str(j)+'_samples.dat')
-
-            sm_ac = np.sum(arcis_spec_ac, axis=1)
-
-            arcis_spec[r] = np.concatenate((arcis_spec[r], arcis_spec_ac[sm_ac!=0]))
-            np_theta[r] = np.concatenate((np_theta[r], np_theta_ac[sm_ac!=0]))
-
-            
-    ### COMPUTE EVIDENCE
-    if r>0:
-        logging.info('Computing evidence...')
-        logZ = evidence(posteriors[-1], prior, arcis_spec[r], np_theta[r], obs_spec, noise_spec)
         print('\n')
-        print('ln (Z) = '+ str(round(logZ[0], 2))+' ('+str(round(logZ[1],2))+', '+str(round(logZ[2],2))+')')
-        logging.info('ln (Z) = '+ str(round(logZ[0], 2))+' ('+str(round(logZ[1],2))+', '+str(round(logZ[2],2))+')')
+        print('##### 1D marginals #####')
+        print('________________________')
         print('\n')
-        logZs.append(logZ)
-    
-    if args.dont_reject and r>1 and logZs[-1][0]<logZs[-2][0] and logZs[-1][1]<logZs[-2][1]: #change logZs[-2][2] to logZs[-2][0]
-        # If evidence doesn't improve we repeat last step
-        repeat+=1
-        print('Round rejected, repeating previous round. This round has been rejected '+str(repeat)+' times.')
-        logging.info('Round rejected, repeating previous round. This round has been rejected '+str(repeat)+' times.')
-        logZs.pop(-1)
-        posteriors.pop(-1)
-        del arcis_spec[r]
-        del np_theta[r]
-        # theta_aug, x = preprocess(np_theta[r-1], arcis_spec[r-1])
-        reject=True
-        if repeat>args.nrepeat:
-            print('This round has been rejected the maximum number of times. Ending inference.')
-            logging.info('This round has been rejected the maximum number of times. Ending inference.')
-            break
-    else:
-        repeat=0
-        if r>0:
-            with open(args.output+'/evidence.p', 'wb') as file_evidence:
-                print('Saving evidence...')
-                logging.info('Saving evidence...')
-                pickle.dump(logZs, file_evidence)
-        ### PREPROCESS DATA
-        print('Preprocessing data...')
-        logging.info('Preprocessing data...')
-        theta_aug, x = preprocess(np_theta[r], arcis_spec[r])
-        reject=False
-        if r>1 and abs(logZs[-1][0]-logZs[-2][0])<args.Ztol:
-            print('ΔZ < Ztol')
-            logging.info('ΔZ < Ztol')
-            good_rounds.append(1)
-            if sum(good_rounds[-args.Zrounds:])==args.Zrounds:
-                print('Last '+str(args.Zrounds)+'rounds have had ΔZ < Ztol. Ending inference.')
-                logging.info('Last '+str(args.Zrounds)+'rounds have had ΔZ < Ztol. Ending inference.')
-                r=num_rounds
-            elif sum(good_rounds[-args.Zrounds:])<args.Zrounds:
-                r+=1
-        else:
-            r+=1
-            good_rounds.append(0)
+        post2txt(samples[-1])
+        print('\n')
 
-    ### TRAIN
-    
-    logging.info('Saving training examples...')
-    print('Saving training examples...')
-    with open(args.output+'/arcis_spec.p', 'wb') as file_arcis_spec:
-        pickle.dump(arcis_spec, file_arcis_spec)
-    with open(args.output+'/Y.p', 'wb') as file_np_theta:
-        pickle.dump(np_theta, file_np_theta)
-    
-    tic = time()
-    logging.info('Training SNPE...')
-    print('Training SNPE...')
-    
-    
-    ### IF ROUND IS REJECTED, 'IMPROVEMENT' IN TRAINING SHOULD ALSO BE REJECTED ####
-    ###  
-    ###   FIX THIS!!!!!!
-    
-    with open(args.output+'/x.p', 'wb') as file_x:
-        pickle.dump(x, file_x)
-    
-    if not reject:
-        inference_object = inference.append_simulations(theta_aug, x, proposal=proposal)
-        with open(args.output+'/inference.p', 'wb') as file_inference:
-            pickle.dump(inference, file_inference)
-            
-    ##################################################
-            
-    posterior_estimator = inference_object.train(show_train_summary=True, stop_after_epochs=args.patience, num_atoms=args.atoms, force_first_round_loss=True, retrain_from_scratch=args.retrain_from_scratch, use_combined_loss=True) #use_combined_loss
-    
-    plt.figure(figsize=(10,5))
-    for i in range(10):
-        plt.plot()
-    with open(args.output+'/Figures/corner_'+str(r)+'.jpg', 'wb') as file_corner:
-        plt.savefig(file_corner, bbox_inches='tight')
-    plt.close('all')
-    
-    ### GENERATE POSTERIOR
-    
-    if args.do_pca:
-        print('Transforming observation...')
-        logging.info('Transforming observation...')
-        default_x_pca = pca.transform(obs_spec.reshape(1,-1))
-        if args.xnorm:
-            default_x = xscaler.transform(default_x_pca)
-        else:
-            default_x = default_x_pca
-    elif args.xnorm:
-        default_x = xscaler.transform(obs_spec.reshape(1,-1))
-    else:
-        default_x = obs_spec.reshape(1,-1)
-    
-    print('\n Time elapsed: '+str(time()-tic))
-    logging.info('Time elapsed: '+str(time()-tic))
-    posterior = inference_object.build_posterior(sample_with='rejection').set_default_x(default_x)
-    posteriors.append(posterior)
-    print('Saving posteriors ')
-    logging.info('Saving posteriors ')
-    with open(args.output+'/posteriors.pt', 'wb') as file_posteriors:
-        torch.save(posteriors, file_posteriors)
-    proposal = posterior
-    
-    
-    ### DRAW 5000 SAMPLES (JUST FOR PLOTTING)
-        
-    if not reject:
-        print('Saving samples ')
-        logging.info('Saving samples ')
-        tsamples = posterior.sample((args.npew,))
-        if args.ynorm:
-            samples.append(yscaler.inverse_transform(tsamples.cpu().detach().numpy()))
-        else:
-            samples.append(tsamples.cpu().detach().numpy())
-
-        with open(args.output+'/samples.p', 'wb') as file_samples:
-            pickle.dump(samples, file_samples)
-    
-    print('\n')
-    print('##### 1D marginals #####')
-    print('________________________')
-    print('\n')
-    post2txt(samples[-1])
-    print('\n')
-
-    plt.close('all')
+        plt.close('all')
     
 
 ### FINISHING    
