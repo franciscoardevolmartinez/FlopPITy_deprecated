@@ -99,8 +99,9 @@ class SummaryNet(nn.Module):
     def __init__(self, size_in, size_out):
         super().__init__()
         inter = int((size_in+size_out)/2)
-        self.fc1 = nn.Linear(size_in, size_out)
-        # self.fc2 = nn.Linear(inter, size_out)
+        self.fc1 = nn.Linear(size_in, inter)
+        self.fc2 = nn.Linear(inter, inter)
+        self.fc3= nn.Linear(inter, size_out)
 
     def forward(self, x):
         x = F.sigmoid(self.fc1(x))
@@ -293,9 +294,9 @@ for j in range(len(obs)):
 
 if args.embedding:
     print('Using an embedding network.')
-    embedding_net = SummaryNet(obs_spec.shape[0], args.embed_size)
+    summary = SummaryNet(obs_spec.shape[0], args.embed_size)
 else:
-    embedding_net = nn.Identity()
+    summary = nn.Identity()
     
 ### Preprocessing for spectra and parameters
 def preprocess(np_theta, arcis_spec):
@@ -362,9 +363,9 @@ num_rounds = args.num_rounds
 # neural_posterior = posterior_nn(model='nsf', hidden_features=args.hidden, num_transforms=args.transforms, num_bins=args.bins, num_blocks=args.blocks,
 #                                 z_score_x='none', z_score_y='none', use_batch_norm=True, dropout_probability=args.dropout, embedding_net=embedding_net) #delete embedding_net #z_score='independent'
 
-neural_posterior = posterior_nn(model='nsf', embedding_net=embedding_net, use_batch_norm=True, dropout_probability=args.dropout)
+# neural_posterior = posterior_nn(model='nsf', embedding_net=summary, use_batch_norm=True, dropout_probability=args.dropout)
 
-inference = SNPE_C(prior = prior, density_estimator=neural_posterior, device=device)  ### put this back when finished
+inference = SNPE_C(prior = prior, density_estimator='nsf', device=device)  ### put this back when finished
 
 samples_per_round = args.samples_per_round
 
