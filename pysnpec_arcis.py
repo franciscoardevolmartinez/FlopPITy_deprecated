@@ -8,6 +8,7 @@ import sys
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torchmetrics.functional import kl_divergence
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning)
 import pickle
@@ -45,6 +46,7 @@ def parse_args():
     parser.add_argument('-embed_size', type=int, default=64)
     parser.add_argument('-embedding', action='store_true')
     parser.add_argument('-bins', type=int, default=10)
+    parser.add_argument('-twoterms', action='store_true')
     parser.add_argument('-blocks', type=int, default=2)
     parser.add_argument('-ynorm', action='store_false')
     parser.add_argument('-xnorm', action='store_false')
@@ -93,6 +95,32 @@ def evidence(posterior, prior, samples, Y, obs, err):
     logZ[1] = np.percentile(-(P-pi-L).detach().numpy(), 16)
     return logZ
 
+def evidence_w_all(posterior, prior, samples, Y, obs, err):
+    L = np.empty(len(samples[0])*len(samples))
+    for j in range(len(samples)):
+        for k in range(len(samples[j])):
+            L[j*len(samples[j])+k] = likelihood(obs, err, samples[j][k])
+    if args.do_pca:
+        if args.xnorm:
+            default_x = xscaler.transform(pca.transform(obs.reshape(1,-1)))
+        else:
+            default_x = pca.transform(obs.reshape(1,-1))
+    else:
+        if args.xnorm:
+            default_x = xscaler.transform(obs.reshape(1,-1))
+        else:
+            default_x = obs.reshape(1,-1)
+    P = np.empty(len(samples[0])*len(samples))
+    pi = np.empty(len(samples[0])*len(samples))
+    for l in range(len(samples)):
+        P[len(samples[0])*l:len(samples[0])*(l+1)] = posterior.log_prob(torch.tensor(Y[l]), x=default_x).detach().numpy()
+        pi[len(samples[0])*l:len(samples[0])*(l+1)] = prior.log_prob(torch.tensor(Y[l])).detach().numpy()
+    logZ =np.empty(3)
+    logZ[0] = np.median(-(P-pi-L))
+    logZ[2] = np.percentile(-(P-pi-L), 84)
+    logZ[1] = np.percentile(-(P-pi-L), 16)
+    return logZ
+
 ### Embedding network
 class SummaryNet(nn.Module):
 
@@ -104,8 +132,9 @@ class SummaryNet(nn.Module):
         self.fc3= nn.Linear(inter, size_out)
 
     def forward(self, x):
-        x = F.sigmoid(self.fc1(x))
-        # x = self.fc2(x)
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x))
+        x = self.fc3(x)
         return x
     
 ### Display 1D marginals in console
@@ -190,6 +219,45 @@ def compute(np_theta):
     
     return arcis_spec
 
+def compute_2term(np_theta):
+    samples_per_process = 2*len(np_theta)//args.processes
+
+    print('Samples per process: ', samples_per_process)
+
+    parargs=[]
+    if args.ynorm:
+        params1=yscaler.inverse_transform(np_theta)
+    else:
+        params1 = np_theta
+    print(params1.shape)
+    params= np.zeros([2*params1.shape[0], (params1.shape[1]-2)//2+2])
+    params[::2,:-2] = params1[:,:-2][:,::2]
+    params[1::2,:-2] = params1[:,:-2][:,1::2]
+    params[::2,-2:] = params1[:,-2:]
+    params[1::2,-2:] = params1[:,-2:]
+    # params=params1.reshape([len(np_theta[0])//2, 2*samples_per_round])
+    if freeT:
+        for i in range(args.processes-1):
+            parargs.append((params[i*samples_per_process:(i+1)*samples_per_process], args.output, r, args.input, freeT, nTpoints,nr, i, len(obs), len(obs_spec)))
+        parargs.append((params[(args.processes-1)*samples_per_process:], args.output, r, args.input, freeT, nTpoints,nr, args.processes-1, len(obs), len(obs_spec)))
+    else:
+        for i in range(args.processes-1):
+            parargs.append((params[i*samples_per_process:(i+1)*samples_per_process], args.output, r, args.input, freeT, 0,nr, i, len(obs), len(obs_spec)))
+        parargs.append((params[(args.processes-1)*samples_per_process:], args.output, r, args.input, freeT, 0, nr,args.processes-1, len(obs), len(obs_spec)))
+
+    tic=time()
+    with Pool(processes = args.processes) as pool:
+        arcis_specs = pool.starmap(simulator, parargs)
+    arcis_spec = np.concatenate(arcis_specs)
+    print('Time elapsed: ', time()-tic)
+    logging.info(('Time elapsed: ', time()-tic))
+    
+    arcis_spec_2 = np.zeros([len(np_theta), len(obs_spec)])
+    for i in range(len(np_theta)):
+        arcis_spec_2[i]=np.mean(arcis_spec[2*i:2*i+2], axis=0)
+    
+    return arcis_spec_2
+
 ##### CREATE FOLDERS ######
 
 # try:
@@ -224,58 +292,82 @@ os.system('cp '+args.input + ' '+args.output+'/input_arcis.dat')
 args.input = args.output+'/input_arcis.dat'
 
 ### READ PARAMETERS
-inp = []
-with open(args.input, 'rb') as arcis_input:
-    for lines in arcis_input:
-        inp.append(str(lines).replace('\\n','').replace("b'","").replace("'", ""))
-clean_in = []
-for i in range(len(inp)):
-    if inp[i]!='' and inp[i][0]!='*':
-        clean_in.append(inp[i])
-        
-freeT=False
-    
-parnames=[]
-prior_bounds=[]
-i=0
-while i<len(clean_in):
-    if 'nr=' in clean_in[i]:
-        nr = int(clean_in[i][3:])
-    elif 'nr =' in clean_in[i]:
-        nr = int(clean_in[i][4:])
-    if 'fitpar:keyword' in clean_in[i]:
-        if clean_in[i][16:-1] == 'tprofile':
-            freeT=True
-            nTpoints = int(clean_in[i+1][9:])
-            for j in range(nTpoints):
-                parnames.append('dTpoint00'+str(1+j))
-                prior_bounds.append([-4/7, 4/7])
-#            for k in range(nTpoints):
-#                parnames.append('Ppoint00'+str(1+k))
-            parnames.append('x')
-            prior_bounds.append([0,1])
-            i+=3
-        else:
-            parnames.append(clean_in[i][16:-1])
-            if clean_in[i+3]=='fitpar:log=.true.':
-                prior_bounds.append([np.log10(float(clean_in[i+1][11:].replace('d','e'))), np.log10(float(clean_in[i+2][11:].replace('d','e')))])
-            elif clean_in[i+3]=='fitpar:log=.false.':
-                prior_bounds.append([float(clean_in[i+1][11:].replace('d','e')), float(clean_in[i+2][11:].replace('d','e'))])
-            i+=4
-    else:
-        i+=1
+def read_arcis_input():
+    inp = []
+    with open(args.input, 'rb') as arcis_input:
+        for lines in arcis_input:
+            inp.append(str(lines).replace('\\n','').replace("b'","").replace("'", ""))
+    clean_in = []
+    for i in range(len(inp)):
+        if inp[i]!='' and inp[i][0]!='*':
+            clean_in.append(inp[i])
 
-prior_bounds=np.array(prior_bounds)
+    freeT=False
+
+    parnames=[]
+    prior_bounds=[]
+    i=0
+    while i<len(clean_in):
+        #I think this is just checking the number of atm layers to initialize PT arrays? Sounds inefficient and I should change it
+        if 'nr=' in clean_in[i]:
+            nr = int(clean_in[i][3:])
+        elif 'nr =' in clean_in[i]:
+            nr = int(clean_in[i][4:])
+        if 'fitpar:keyword' in clean_in[i]:
+            if clean_in[i][16:-1] == 'tprofile':
+                freeT=True
+                nTpoints = int(clean_in[i+1][9:])
+                for j in range(nTpoints):
+                    parnames.append('dTpoint00'+str(1+j))
+                    prior_bounds.append([-4/7, 4/7])
+    #            for k in range(nTpoints):
+    #                parnames.append('Ppoint00'+str(1+k))
+                parnames.append('x')
+                prior_bounds.append([0,1])
+                i+=3
+            elif args.twoterms:
+                if clean_in[i][16:-1]=='Rp' or clean_in[i][16:-1]=='loggP':
+                    parnames.append(clean_in[i][16:-1])
+                    if clean_in[i+3]=='fitpar:log=.true.':
+                        prior_bounds.append([np.log10(float(clean_in[i+1][11:].replace('d','e'))), np.log10(float(clean_in[i+2][11:].replace('d','e')))])
+                    elif clean_in[i+3]=='fitpar:log=.false.':
+                        prior_bounds.append([float(clean_in[i+1][11:].replace('d','e')), float(clean_in[i+2][11:].replace('d','e'))])
+                else:
+                    parnames.append(clean_in[i][16:-1]+'_1')
+                    parnames.append(clean_in[i][16:-1]+'_2')
+                    if clean_in[i+3]=='fitpar:log=.true.':
+                        prior_bounds.append([np.log10(float(clean_in[i+1][11:].replace('d','e'))), np.log10(float(clean_in[i+2][11:].replace('d','e')))])
+                        prior_bounds.append([np.log10(float(clean_in[i+1][11:].replace('d','e'))), np.log10(float(clean_in[i+2][11:].replace('d','e')))])
+                    elif clean_in[i+3]=='fitpar:log=.false.':
+                        prior_bounds.append([float(clean_in[i+1][11:].replace('d','e')), float(clean_in[i+2][11:].replace('d','e'))])
+                        prior_bounds.append([float(clean_in[i+1][11:].replace('d','e')), float(clean_in[i+2][11:].replace('d','e'))])
+                i+=4
+            else:
+                parnames.append(clean_in[i][16:-1])
+                if clean_in[i+3]=='fitpar:log=.true.':
+                    prior_bounds.append([np.log10(float(clean_in[i+1][11:].replace('d','e'))), np.log10(float(clean_in[i+2][11:].replace('d','e')))])
+                elif clean_in[i+3]=='fitpar:log=.false.':
+                    prior_bounds.append([float(clean_in[i+1][11:].replace('d','e')), float(clean_in[i+2][11:].replace('d','e'))])
+                i+=4
+        else:
+            i+=1
+    
+
+    prior_bounds=np.array(prior_bounds)
+    
+    obs=[]
+    i=0
+    obsn=1
+    while i<len(clean_in):
+        if 'obs'+str(obsn)+':file' in clean_in[i]:
+            obs.append(clean_in[i][len('obs'+str(obsn)+':file')+2:-1])
+            obsn+=1
+        i+=1
+        
+    return parnames, prior_bounds
         
 ### READ OBSERVATIONS
-obs=[]
-i=0
-obsn=1
-while i<len(clean_in):
-    if 'obs'+str(obsn)+':file' in clean_in[i]:
-        obs.append(clean_in[i][len('obs'+str(obsn)+':file')+2:-1])
-        obsn+=1
-    i+=1
+
 
 ### 1. Load observation/s
 print('Loading observations... ')
@@ -363,7 +455,7 @@ num_rounds = args.num_rounds
 # neural_posterior = posterior_nn(model='nsf', hidden_features=args.hidden, num_transforms=args.transforms, num_bins=args.bins, num_blocks=args.blocks,
 #                                 z_score_x='none', z_score_y='none', use_batch_norm=True, dropout_probability=args.dropout, embedding_net=embedding_net) #delete embedding_net #z_score='independent'
 
-# neural_posterior = posterior_nn(model='nsf', embedding_net=summary, use_batch_norm=True, dropout_probability=args.dropout)
+neural_posterior = posterior_nn(model='nsf', embedding_net=summary)
 
 inference = SNPE_C(prior = prior, density_estimator='nsf', device=device)  ### put this back when finished
 
@@ -472,7 +564,10 @@ while r<num_rounds:
         plt.close('all')
 
         #### COMPUTE MODELS
-        arcis_spec[r] = compute(np_theta[r])
+        if args.twoterms:
+            arcis_spec[r] = compute_2term(np_theta[r])
+        else:
+            arcis_spec[r] = compute(np_theta[r])
 
         for j in range(args.processes):
             os.system('mv '+args.output + '/round_'+str(r)+str(j)+'_out/log.dat '+args.output +'/ARCiS_logs/log_'+str(r)+str(j)+'.dat')
@@ -512,6 +607,7 @@ while r<num_rounds:
     if r>0:
         logging.info('Computing evidence...')
         logZ = evidence(posteriors[-1], prior, arcis_spec[r], np_theta[r], obs_spec, noise_spec)
+        # logZ = evidence_w_all(posteriors[-1], prior, arcis_spec, np_theta, obs_spec, noise_spec)
         print('\n')
         print('ln (Z) = '+ str(round(logZ[0], 2))+' ('+str(round(logZ[1],2))+', '+str(round(logZ[2],2))+')')
         logging.info('ln (Z) = '+ str(round(logZ[0], 2))+' ('+str(round(logZ[1],2))+', '+str(round(logZ[2],2))+')')
@@ -620,6 +716,17 @@ while r<num_rounds:
     with open(args.output+'/posteriors.pt', 'wb') as file_posteriors:
         torch.save(posteriors, file_posteriors)
     proposal = posterior
+    
+    ### CALCULATE KL DIVERGENCE (SEE HOW MUCH THE POSTERIOR CHANGED FROM LAST ROUND)
+    
+    if len(posteriors)>1:
+        # p = posteriors[-1].log_prob(torch.tensor(np_theta[r-1]), x=default_x).reshape(1,-1)
+        p = torch.tensor(np_theta[r-1])
+        q = torch.tensor(np_theta[r-2])
+        # q = posteriors[-2].log_prob(torch.tensor(np_theta[r-1]), x=default_x).reshape(1,-1)
+        KL = kl_divergence(p,q)
+
+        print('KL divergence:', KL)
 
 
     ### DRAW 5000 SAMPLES (JUST FOR PLOTTING)
