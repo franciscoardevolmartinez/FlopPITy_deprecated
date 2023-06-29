@@ -210,12 +210,11 @@ def compute(np_theta):
             parargs.append((params[i*samples_per_process:(i+1)*samples_per_process], args.output, r, args.input, freeT, 0, nr, i, len(obs), len(obs_spec)))
         parargs.append((params[(args.processes-1)*samples_per_process:], args.output, r, args.input, freeT, 0,nr, args.processes-1, len(obs), len(obs_spec)))
 
-    tic=time()
+    # tic=time()
     with Pool(processes = args.processes) as pool:
         arcis_specs = pool.starmap(simulator, parargs)
     arcis_spec = np.concatenate(arcis_specs)
-    print('Time elapsed: ', time()-tic)
-    logging.info(('Time elapsed: ', time()-tic))
+    print('Tim/fo(('Time elapsed: ', time()-tic))
     
     return arcis_spec
 
@@ -245,12 +244,12 @@ def compute_2term(np_theta):
             parargs.append((params[i*samples_per_process:(i+1)*samples_per_process], args.output, r, args.input, freeT, 0,nr, i, len(obs), len(obs_spec)))
         parargs.append((params[(args.processes-1)*samples_per_process:], args.output, r, args.input, freeT, 0, nr,args.processes-1, len(obs), len(obs_spec)))
 
-    tic=time()
+    # tic=time()
     with Pool(processes = args.processes) as pool:
         arcis_specs = pool.starmap(simulator, parargs)
     arcis_spec = np.concatenate(arcis_specs)
-    print('Time elapsed: ', time()-tic)
-    logging.info(('Time elapsed: ', time()-tic))
+    # print('Time elapsed: ', time()-tic)
+    # logging.info(('Time elapsed: ', time()-tic))
     
     arcis_spec_2 = np.zeros([len(np_theta), len(obs_spec)])
     for i in range(len(np_theta)):
@@ -278,7 +277,7 @@ arcis_logs.mkdir(parents=False, exist_ok=True)
 ##########################
 
 logging.basicConfig(filename=args.output+'/log.log', filemode='a', format='%(asctime)s %(message)s', 
-                datefmt='%H:%M:%S', level=logging.DEBUG)
+                datefmt='%D:%H:%M:%S', level=logging.DEBUG)
 
 logging.info('Initializing...')
 
@@ -292,82 +291,76 @@ os.system('cp '+args.input + ' '+args.output+'/input_arcis.dat')
 args.input = args.output+'/input_arcis.dat'
 
 ### READ PARAMETERS
-def read_arcis_input():
-    inp = []
-    with open(args.input, 'rb') as arcis_input:
-        for lines in arcis_input:
-            inp.append(str(lines).replace('\\n','').replace("b'","").replace("'", ""))
-    clean_in = []
-    for i in range(len(inp)):
-        if inp[i]!='' and inp[i][0]!='*':
-            clean_in.append(inp[i])
-
-    freeT=False
-
-    parnames=[]
-    prior_bounds=[]
-    i=0
-    while i<len(clean_in):
-        #I think this is just checking the number of atm layers to initialize PT arrays? Sounds inefficient and I should change it
-        if 'nr=' in clean_in[i]:
-            nr = int(clean_in[i][3:])
-        elif 'nr =' in clean_in[i]:
-            nr = int(clean_in[i][4:])
-        if 'fitpar:keyword' in clean_in[i]:
-            if clean_in[i][16:-1] == 'tprofile':
-                freeT=True
-                nTpoints = int(clean_in[i+1][9:])
-                for j in range(nTpoints):
-                    parnames.append('dTpoint00'+str(1+j))
-                    prior_bounds.append([-4/7, 4/7])
-    #            for k in range(nTpoints):
-    #                parnames.append('Ppoint00'+str(1+k))
-                parnames.append('x')
-                prior_bounds.append([0,1])
-                i+=3
-            elif args.twoterms:
-                if clean_in[i][16:-1]=='Rp' or clean_in[i][16:-1]=='loggP':
-                    parnames.append(clean_in[i][16:-1])
-                    if clean_in[i+3]=='fitpar:log=.true.':
-                        prior_bounds.append([np.log10(float(clean_in[i+1][11:].replace('d','e'))), np.log10(float(clean_in[i+2][11:].replace('d','e')))])
-                    elif clean_in[i+3]=='fitpar:log=.false.':
-                        prior_bounds.append([float(clean_in[i+1][11:].replace('d','e')), float(clean_in[i+2][11:].replace('d','e'))])
-                else:
-                    parnames.append(clean_in[i][16:-1]+'_1')
-                    parnames.append(clean_in[i][16:-1]+'_2')
-                    if clean_in[i+3]=='fitpar:log=.true.':
-                        prior_bounds.append([np.log10(float(clean_in[i+1][11:].replace('d','e'))), np.log10(float(clean_in[i+2][11:].replace('d','e')))])
-                        prior_bounds.append([np.log10(float(clean_in[i+1][11:].replace('d','e'))), np.log10(float(clean_in[i+2][11:].replace('d','e')))])
-                    elif clean_in[i+3]=='fitpar:log=.false.':
-                        prior_bounds.append([float(clean_in[i+1][11:].replace('d','e')), float(clean_in[i+2][11:].replace('d','e'))])
-                        prior_bounds.append([float(clean_in[i+1][11:].replace('d','e')), float(clean_in[i+2][11:].replace('d','e'))])
-                i+=4
-            else:
+inp = []
+with open(args.input, 'rb') as arcis_input:
+    for lines in arcis_input:
+        inp.append(str(lines).replace('\\n','').replace("b'","").replace("'", ""))
+clean_in = []
+for i in range(len(inp)):
+    if inp[i]!='' and inp[i][0]!='*':
+        clean_in.append(inp[i])
+        
+freeT=False
+    
+parnames=[]
+prior_bounds=[]
+i=0
+while i<len(clean_in):
+    #I think this is just checking the number of atm layers to initialize PT arrays? Sounds inefficient and I should change it
+    if 'nr=' in clean_in[i]:
+        nr = int(clean_in[i][3:])
+    elif 'nr =' in clean_in[i]:
+        nr = int(clean_in[i][4:])
+    if 'fitpar:keyword' in clean_in[i]:
+        if clean_in[i][16:-1] == 'tprofile':
+            freeT=True
+            nTpoints = int(clean_in[i+1][9:])
+            for j in range(nTpoints):
+                parnames.append('dTpoint00'+str(1+j))
+                prior_bounds.append([-4/7, 4/7])
+#            for k in range(nTpoints):
+#                parnames.append('Ppoint00'+str(1+k))
+            parnames.append('x')
+            prior_bounds.append([0,1])
+            i+=3
+        elif args.twoterms:
+            if clean_in[i][16:-1]=='Rp' or clean_in[i][16:-1]=='loggP':
                 parnames.append(clean_in[i][16:-1])
                 if clean_in[i+3]=='fitpar:log=.true.':
                     prior_bounds.append([np.log10(float(clean_in[i+1][11:].replace('d','e'))), np.log10(float(clean_in[i+2][11:].replace('d','e')))])
                 elif clean_in[i+3]=='fitpar:log=.false.':
                     prior_bounds.append([float(clean_in[i+1][11:].replace('d','e')), float(clean_in[i+2][11:].replace('d','e'))])
-                i+=4
+            else:
+                parnames.append(clean_in[i][16:-1]+'_1')
+                parnames.append(clean_in[i][16:-1]+'_2')
+                if clean_in[i+3]=='fitpar:log=.true.':
+                    prior_bounds.append([np.log10(float(clean_in[i+1][11:].replace('d','e'))), np.log10(float(clean_in[i+2][11:].replace('d','e')))])
+                    prior_bounds.append([np.log10(float(clean_in[i+1][11:].replace('d','e'))), np.log10(float(clean_in[i+2][11:].replace('d','e')))])
+                elif clean_in[i+3]=='fitpar:log=.false.':
+                    prior_bounds.append([float(clean_in[i+1][11:].replace('d','e')), float(clean_in[i+2][11:].replace('d','e'))])
+                    prior_bounds.append([float(clean_in[i+1][11:].replace('d','e')), float(clean_in[i+2][11:].replace('d','e'))])
+            i+=4
         else:
-            i+=1
-    
-
-    prior_bounds=np.array(prior_bounds)
-    
-    obs=[]
-    i=0
-    obsn=1
-    while i<len(clean_in):
-        if 'obs'+str(obsn)+':file' in clean_in[i]:
-            obs.append(clean_in[i][len('obs'+str(obsn)+':file')+2:-1])
-            obsn+=1
+            parnames.append(clean_in[i][16:-1])
+            if clean_in[i+3]=='fitpar:log=.true.':
+                prior_bounds.append([np.log10(float(clean_in[i+1][11:].replace('d','e'))), np.log10(float(clean_in[i+2][11:].replace('d','e')))])
+            elif clean_in[i+3]=='fitpar:log=.false.':
+                prior_bounds.append([float(clean_in[i+1][11:].replace('d','e')), float(clean_in[i+2][11:].replace('d','e'))])
+            i+=4
+    else:
         i+=1
-        
-    return parnames, prior_bounds
+
+prior_bounds=np.array(prior_bounds)
         
 ### READ OBSERVATIONS
-
+obs=[]
+i=0
+obsn=1
+while i<len(clean_in):
+    if 'obs'+str(obsn)+':file' in clean_in[i]:
+        obs.append(clean_in[i][len('obs'+str(obsn)+':file')+2:-1])
+        obsn+=1
+    i+=1
 
 ### 1. Load observation/s
 print('Loading observations... ')
@@ -461,7 +454,6 @@ inference = SNPE_C(prior = prior, density_estimator='nsf', device=device)  ### p
 
 samples_per_round = args.samples_per_round
 
-
 print('Training multi-round inference')
 logging.info('Training multi-round inference')
 
@@ -477,6 +469,9 @@ arcis_spec = {}
 
 r=0
 repeat=0
+          
+model_time=[]
+train_time=[]
 
 if args.resume:
     # 1st check where it was left off previously
@@ -562,8 +557,9 @@ while r<num_rounds:
         with open(args.output+'/Figures/corner_'+str(r)+'.jpg', 'wb') as file_corner:
             plt.savefig(file_corner, bbox_inches='tight')
         plt.close('all')
-
+        
         #### COMPUTE MODELS
+        tic_compute=time()
         if args.twoterms:
             arcis_spec[r] = compute_2term(np_theta[r])
         else:
@@ -602,6 +598,10 @@ while r<num_rounds:
 
             arcis_spec[r] = np.concatenate((arcis_spec[r], arcis_spec_ac[sm_ac!=0]))
             np_theta[r] = np.concatenate((np_theta[r], np_theta_ac[sm_ac!=0]))
+        model_time.append(time()-tic_compute)  
+        logging.info('Time elapsed: ', time()-tic_compute)
+        print('Time elapsed: ', time()-tic_compute)
+        
 
     ### COMPUTE EVIDENCE
     if r>0:
@@ -709,6 +709,7 @@ while r<num_rounds:
 
     print('\n Time elapsed: '+str(time()-tic))
     logging.info('Time elapsed: '+str(time()-tic))
+    train_time.append(time()-tic)
     posterior = inference_object.build_posterior(sample_with='rejection').set_default_x(default_x)
     posteriors.append(posterior)
     print('Saving posteriors ')
@@ -769,3 +770,9 @@ plt.close('all')
 print('\n')
 print('Time elapsed: ', time()-supertic)
 logging.info('Time elapsed: '+str(time()-supertic))
+print('\n')
+print('Time elapsed computing models: ', sum(model_time))
+logging.info('Time elapsed computing models: ', sum(model_time))
+print('\n')
+print('Time elapsed training: ', sum(train_time))
+logging.info('Time elapsed training: ', sum(train_time))
