@@ -19,12 +19,12 @@ The following python packages are needed:
 A basic example of a script to run a retrieval can be found in `example.sh`.
 
 Here's a brief description of the most important options:
-- `input`: Used to specify the device on which the flows are trained. Can be `cpu` or `gpu`. Default: `cpu`.
-- `output`: Switches on a neural network (called embedding network) to reduce the dimensionality of the data. Off by default.
-- `n_rounds`: The size of the embedding network's output.
-- `samples_per_round`: Specifies the maximum change in log(Z) to stop inference. For parameter estimation, large values (e.g. 1, set by default) are fine. For model comparison, it should be <1.
+- `input`: Path to ARCiS input file.
+- `output`: Directory where the output will be saved.
+- `n_rounds`: Number of rounds to train for.
+- `samples_per_round`: Number of forward models to use for training at each round.
 - `processes`: The number of parallel instances of ARCiS running to compute the training set. Can be used to speed up the inference if multiple cores are available.
-- `resume`: By default, a round will be rejected if the evidence doesn't improve with respect to the previous one. This option turns it off. 
+- `resume`: Use this option to resume a previous retrieval. 
 
 
 ### Output
