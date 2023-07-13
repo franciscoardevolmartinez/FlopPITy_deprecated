@@ -255,7 +255,7 @@ while r<num_rounds:
     ##### COMPUTE EVIDENCE
     if r>0:
         logging.info('Computing evidence...')
-        logZ = evidence(posteriors[-1], prior, arcis_spec[r], np_theta[r], obs_spec, noise_spec, args.do_pca, args.xnorm)
+        logZ = evidence(posteriors[-1], prior, arcis_spec[r], np_theta[r], obs_spec, noise_spec, args.do_pca, args.xnorm, xscaler, pca)
         print('\n')
         print('ln (Z) = '+ str(round(logZ[0], 2))+' ('+str(round(logZ[1],2))+', '+str(round(logZ[2],2))+')')
         logging.info('ln (Z) = '+ str(round(logZ[0], 2))+' ('+str(round(logZ[1],2))+', '+str(round(logZ[2],2))+')')
@@ -288,7 +288,7 @@ while r<num_rounds:
                 pickle.dump(logZs, file_evidence)
         print('Preprocessing data...')
         logging.info('Preprocessing data...')
-        theta_aug, x = preprocess(np_theta[r], arcis_spec[r], r, samples_per_round, obs_spec, noise_spec, args.do_pca, args.n_pca, args.xnorm, args.output, args.device)
+        theta_aug, x, xscaler, pca = preprocess(np_theta[r], arcis_spec[r], r, samples_per_round, obs_spec, noise_spec, args.do_pca, args.n_pca, args.xnorm, args.output, args.device)
         reject=False
         if r>1 and abs(logZs[-1][0]-logZs[-2][0])<args.Ztol:
             print('ΔZ < Ztol')

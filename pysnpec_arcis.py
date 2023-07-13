@@ -24,7 +24,7 @@ def likelihood(obs, err, x):
         L += -np.log(np.sqrt(2*np.pi)*err[i]) + (-(obs[i]-x[i])**2/(2*err[i]**2))
     return L
 
-def evidence(posterior, prior, samples, Y, obs, err, do_pca, xnorm):
+def evidence(posterior, prior, samples, Y, obs, err, do_pca, xnorm, xscaler, pca):
     L = np.empty(len(samples))
     for j in range(len(samples)):
         L[j] = likelihood(obs, err, samples[j])
@@ -300,11 +300,13 @@ def read_arcis_input(inputfile, twoterms):
 
     
 ### Preprocessing for spectra and parameters
-def preprocess(np_theta, arcis_spec, r, samples_per_round, obs_spec,noise_spec,do_pca, n_pca,xnorm, output, device):
+def preprocess(np_theta, arcis_spec, r, samples_per_round, obs_spec,noise_spec,do_pca, n_pca, xnorm, output, device):
     theta_aug = torch.tensor(np_theta, dtype=torch.float32, device=device)
     arcis_spec_aug = arcis_spec + noise_spec*np.random.randn(samples_per_round, obs_spec.shape[0]) #surely this can be changed to arcis_spec.shape ??
-    global xscaler
-    global pca
+    
+    xscaler=None
+    pca=None
+    
     if r==0:
         if do_pca:
             print('Fitting PCA...')
@@ -326,15 +328,18 @@ def preprocess(np_theta, arcis_spec, r, samples_per_round, obs_spec,noise_spec,d
                 pickle.dump(xscaler, file_xscaler)
 
     if do_pca:
+        pca=pickle.load(open(output+'/pca.p', 'rb'))
         print('Doing PCA...')
         logging.info('Doing PCA...')
         x_i = pca.transform(arcis_spec_aug)
         if xnorm:
+            xscaler=pickle.load(open(output+'/xscaler.p', 'rb'))
             x_f = xscaler.transform(x_i)
         else:
             x_f = x_i
-        np.save(output+'/preprocessed.npy', x_f)
+        # np.save(output+'/preprocessed.npy', x_f)
     elif xnorm:
+        xscaler=pickle.load(open(output+'/xscaler.p', 'rb'))
         print('Normalizing features')
         logging.info('Normalizing features')
         x_f = xscaler.transform(arcis_spec_aug)
@@ -343,4 +348,4 @@ def preprocess(np_theta, arcis_spec, r, samples_per_round, obs_spec,noise_spec,d
 
     x = torch.tensor(x_f, dtype=torch.float32, device=device)
 
-    return theta_aug, x
+    return theta_aug, x, xscaler, pca
