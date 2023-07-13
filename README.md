@@ -1,5 +1,6 @@
 # FlopPITy
 (normalising **Flo**w exo**p**lanet **P**arameter **I**nference **T**oolk**y**t)
+
 Allows the user to easily train normalizing flows in multiple rounds to perform atmospheric retrievals of exoplanets. Specifically written to work in conjunction with ARCiS. [TauREx](https://taurex3-public.readthedocs.io/en/latest/) and [petitRADTRANS](https://petitradtrans.readthedocs.io/en/latest/) versions coming soon.
 
 ## Requirements
