@@ -15,7 +15,7 @@ import logging
 import os
 logging.getLogger('matplotlib').setLevel(logging.WARNING)
 from multiprocessing import Process, Pool
-from simulator import simulator
+from simulator import *
 
 ### (Log) likelihood. Necessary to compute (log) evidence
 def likelihood(obs, err, x):

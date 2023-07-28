@@ -16,7 +16,7 @@ logging.getLogger('matplotlib').setLevel(logging.WARNING)
 import matplotlib.pyplot as plt
 from corner import corner
 from floppityFUN import *
-from ARCiS import *
+from simulator import *
 
 supertic = time()
 
@@ -86,11 +86,11 @@ print('Command line arguments: '+ str(args))
 
 
 ##### READ ARCiS INPUT FILE
-os.system('cp '+args.input + ' '+args.output+'/input_arcis.dat')
+os.system('cp '+args.input + ' '+args.output+'/input_'+args.forward+'.dat')
 
-args.input = args.output+'/input_arcis.dat'
+args.input = args.output+'/input_'+args.forward+'.dat'
 
-parnames, prior_bounds, obs, obs_spec, noise_spec, nr = read_arcis_input(args.input, args.twoterms)
+parnames, prior_bounds, obs, obs_spec, noise_spec, nr = read_input(args.input, args.twoterms)
 #####################
 
 ##### READ INPUT FILE
