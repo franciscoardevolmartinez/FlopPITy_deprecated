@@ -15,7 +15,18 @@ import os
 from tqdm import trange
 from multiprocessing import Process
 
+#### There should be at least two functions in this file:
+####   - One called 'read_input' that returns a list with the names of the parameters, the prior bounds (as a list of tuples, only support uniform priors for now), 
+####     a list with all observation file names, the observation, the noise of the observation and the number of atmospheric layers.
+####   - One called simulator that returns simulated spectra
+
+
 def read_input(inputfile, twoterms):
+    
+    os.system('cp '+args.input + ' '+args.output+'/input_ARCiS.dat')
+
+    args.input = args.output+'/input_ARCiS.dat'
+    
     inp = []
     with open(inputfile, 'rb') as arcis_input:
         for lines in arcis_input:
@@ -172,3 +183,78 @@ def simulator(parameters, directory, r, input_file, freeT, nTpoints, nr, n, n_ob
         np.save(directory+'/P.npy',P)
     
     return arcis_spec
+
+def compute(np_theta, nprocesses, output, arginput, ynorm, r, nr, obs, obs_spec):
+    samples_per_process = len(np_theta)//nprocesses
+
+    print('Samples per process: ', samples_per_process)
+    freeT=False
+    parargs=[]
+    '''
+    Delete this and just input the un-transformed parameters.
+    
+    if ynorm:
+        params=yscaler.inverse_transform(np_theta)
+    else:
+        params = np_theta
+        '''
+    # if freeT:
+    #     for i in range(nprocesses-1):
+    #         parargs.append((params[i*samples_per_process:(i+1)*samples_per_process], args.output, r, args.input, freeT, nTpoints, nr,i, len(obs), len(obs_spec)))
+    #     parargs.append((params[(args.processes-1)*samples_per_process:], args.output, r, args.input, freeT, nTpoints, nr,args.processes-1, len(obs), len(obs_spec)))
+    else:
+        for i in range(nprocesses-1):
+            parargs.append((params[i*samples_per_process:(i+1)*samples_per_process], output, r, arginput, freeT, 0, nr, i, len(obs), len(obs_spec)))
+        parargs.append((params[(nprocesses-1)*samples_per_process:], output, r, arginput, freeT, 0, nr, nprocesses-1, len(obs), len(obs_spec)))
+
+    # tic=time()
+    with Pool(processes = nprocesses) as pool:
+        # Simulator is function that returns spectra (needs to be same units as observation)
+        arcis_specs = pool.starmap(simulator, parargs)
+    arcis_spec = np.concatenate(arcis_specs)
+    for j in range(nprocesses):
+        os.system('mv '+output + '/round_'+str(r)+str(j)+'_out/log.dat '+output +'/ARCiS_logs/log_'+str(r)+str(j)+'.dat')
+        os.system('rm -rf '+output + '/round_'+str(r)+str(j)+'_out/')
+        os.system('rm -rf '+output + '/round_'+str(r)+str(j)+'_samples.dat')
+# print('Tim/fo(('Time elapsed: ', time()-tic))
+    
+    return arcis_spec
+
+def compute_2term(np_theta):
+    samples_per_process = 2*len(np_theta)//args.processes
+
+    print('Samples per process: ', samples_per_process)
+
+    parargs=[]
+    if args.ynorm:
+        params1=yscaler.inverse_transform(np_theta)
+    else:
+        params1 = np_theta
+    print(params1.shape)
+    params= np.zeros([2*params1.shape[0], (params1.shape[1]-2)//2+2])
+    params[::2,:-2] = params1[:,:-2][:,::2]
+    params[1::2,:-2] = params1[:,:-2][:,1::2]
+    params[::2,-2:] = params1[:,-2:]
+    params[1::2,-2:] = params1[:,-2:]
+    # params=params1.reshape([len(np_theta[0])//2, 2*samples_per_round])
+    if freeT:
+        for i in range(args.processes-1):
+            parargs.append((params[i*samples_per_process:(i+1)*samples_per_process], args.output, r, args.input, freeT, nTpoints,nr, i, len(obs), len(obs_spec)))
+        parargs.append((params[(args.processes-1)*samples_per_process:], args.output, r, args.input, freeT, nTpoints,nr, args.processes-1, len(obs), len(obs_spec)))
+    else:
+        for i in range(args.processes-1):
+            parargs.append((params[i*samples_per_process:(i+1)*samples_per_process], args.output, r, args.input, freeT, 0,nr, i, len(obs), len(obs_spec)))
+        parargs.append((params[(args.processes-1)*samples_per_process:], args.output, r, args.input, freeT, 0, nr,args.processes-1, len(obs), len(obs_spec)))
+
+    # tic=time()
+    with Pool(processes = args.processes) as pool:
+        arcis_specs = pool.starmap(simulator, parargs)
+    arcis_spec = np.concatenate(arcis_specs)
+    # print('Time elapsed: ', time()-tic)
+    # logging.info(('Time elapsed: ', time()-tic))
+    
+    arcis_spec_2 = np.zeros([len(np_theta), len(obs_spec)])
+    for i in range(len(np_theta)):
+        arcis_spec_2[i]=np.mean(arcis_spec[2*i:2*i+2], axis=0)
+    
+    return arcis_spec_2
