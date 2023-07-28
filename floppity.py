@@ -15,7 +15,8 @@ import os
 logging.getLogger('matplotlib').setLevel(logging.WARNING)
 import matplotlib.pyplot as plt
 from corner import corner
-from pysnpec_arcis import *
+from floppityFUN import *
+from ARCiS import *
 
 supertic = time()
 
@@ -26,6 +27,7 @@ def parse_args():
     parser.add_argument('-output', type=str, default='output', help='Directory to save output')
     parser.add_argument('-device', type=str, default='cpu', help='Device to use for training. Default: CPU.')
     parser.add_argument('-num_rounds', type=int, default=10, help='Number of rounds to train for. Default: 10.')
+    parser.add_argument('-forward', type=str, default='ARCiS')
     parser.add_argument('-samples_per_round', type=int, default=1000, help='Number of samples to draw for training each round. Default: 1000.')
     parser.add_argument('-hidden', type=int, default=32)
     parser.add_argument('-transforms', type=int, default=5)
@@ -66,8 +68,8 @@ p.mkdir(parents=True, exist_ok=True)
 imgs = Path(args.output+'/Figures')
 imgs.mkdir(parents=False, exist_ok=True)
 
-arcis_logs = Path(args.output+'/ARCiS_logs')
-arcis_logs.mkdir(parents=False, exist_ok=True)
+logs = Path(args.output+'/'+args.forward+'_logs')
+logs.mkdir(parents=False, exist_ok=True)
 ###################################
 
 
@@ -89,6 +91,16 @@ os.system('cp '+args.input + ' '+args.output+'/input_arcis.dat')
 args.input = args.output+'/input_arcis.dat'
 
 parnames, prior_bounds, obs, obs_spec, noise_spec, nr = read_arcis_input(args.input, args.twoterms)
+#####################
+
+##### READ INPUT FILE
+# Here goes a function that returns: parameter names, prior_bounds, observation files, flux/transit depth, noise, number of atm. layers
+
+# os.system('cp '+args.input + ' '+args.output+'/input_'+args.forward+'.dat')
+
+# args.input = args.output+'/input_'+args.forward+'.dat'
+
+# parnames, prior_bounds, obs, obs_spec, noise_spec, nr = read_arcis_input(args.input, args.twoterms)
 #####################
 
 
