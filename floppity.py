@@ -379,12 +379,12 @@ while r<num_rounds:
     
     
     ##### CALCULATE KL DIVERGENCE (SEE HOW MUCH THE POSTERIOR CHANGED FROM LAST ROUND)
-    if len(posteriors)>1:
-        p = posteriors[-1].log_prob(torch.tensor(np_theta[r-1]), x=default_x).reshape(1,-1)
-        q = posteriors[-2].log_prob(torch.tensor(np_theta[r-1]), x=default_x).reshape(1,-1)
-        KL = kl_divergence(p,q, log_prob=True)
+#     if len(posteriors)>1:
+#         p = posteriors[-1].log_prob(torch.tensor(np_theta[r-1]), x=default_x).reshape(1,-1)
+#         q = posteriors[-2].log_prob(torch.tensor(np_theta[r-1]), x=default_x).reshape(1,-1)
+#         KL = kl_divergence(p,q, log_prob=True)
 
-        print('KL divergence:', KL)
+#         print('KL divergence:', KL)
 
 
     ### DRAW npew SAMPLES (JUST FOR PLOTTING)
