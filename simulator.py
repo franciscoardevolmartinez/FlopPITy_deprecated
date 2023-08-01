@@ -126,16 +126,11 @@ def x2Ppoints(x, nTpoints):
             Ppoint[j,i] = 10**(np.log10(Ppoint[j,i-1]) + np.log10(Pmax/Ppoint[j,i-1]) * (1- x[j]**(1/(nTpoints-i+1))))
     return Ppoint
 
-def simulator(parameters, directory, r, input_file, freeT, nTpoints, nr, n, n_obs, size):
+def simulator(parameters, directory, r, input_file, nr, n, n_obs, size):
     fname = directory+'/round_'+str(r)+str(n)+'_samples.dat'
-    if freeT:
-        parametergrid = np.empty([parameters.shape[0], parameters.shape[1]+nTpoints-1])
-        parametergrid[:, 0:nTpoints+1] = parameters[:,0:nTpoints+1]
-        Ppoints = x2Ppoints(parameters[:,nTpoints+1], nTpoints)
-        parametergrid[:,nTpoints+1:nTpoints+1+nTpoints] = np.log10(Ppoints)
-        parametergrid[:,nTpoints+1+nTpoints:] = parameters[:, nTpoints+2:]
-    else:
-        parametergrid = parameters
+    
+    parametergrid = parameters
+    
     np.savetxt(fname, parametergrid)
 
     print('Running ARCiS')
@@ -185,32 +180,33 @@ def simulator(parameters, directory, r, input_file, freeT, nTpoints, nr, n, n_ob
     
     return arcis_spec
 
+'''
 def compute(params, nprocesses, output, arginput, ynorm, r, nr, obs, obs_spec):
     samples_per_process = len(params)//nprocesses
 
     print('Samples per process: ', samples_per_process)
     freeT=False
     parargs=[]
-    '''
-    Delete this and just input the un-transformed parameters.
     
-    if ynorm:
-        params=yscaler.inverse_transform(np_theta)
-    else:
-        params = np_theta
-        '''
+    # Delete this and just input the un-transformed parameters.
+    
+    # if ynorm:
+    #     params=yscaler.inverse_transform(np_theta)
+    # else:
+    #     params = np_theta
+
     # if ynorm:
     #     params=yscaler.inverse_transform(np_theta)
     # else:
     #     params = np_theta  #### QUICK FIX, MAKE IT GOOD!!!
-    if freeT:
-        for i in range(nprocesses-1):
-            parargs.append((params[i*samples_per_process:(i+1)*samples_per_process], args.output, r, args.input, freeT, nTpoints, nr,i, len(obs), len(obs_spec)))
-        parargs.append((params[(args.processes-1)*samples_per_process:], args.output, r, args.input, freeT, nTpoints, nr,args.processes-1, len(obs), len(obs_spec)))
-    else:
-        for i in range(nprocesses-1):
-            parargs.append((params[i*samples_per_process:(i+1)*samples_per_process], output, r, arginput, freeT, 0, nr, i, len(obs), len(obs_spec)))
-        parargs.append((params[(nprocesses-1)*samples_per_process:], output, r, arginput, freeT, 0, nr, nprocesses-1, len(obs), len(obs_spec)))
+    # if freeT:
+    #     for i in range(nprocesses-1):
+    #         parargs.append((params[i*samples_per_process:(i+1)*samples_per_process], args.output, r, args.input, freeT, nTpoints, nr,i, len(obs), len(obs_spec)))
+    #     parargs.append((params[(args.processes-1)*samples_per_process:], args.output, r, args.input, freeT, nTpoints, nr,args.processes-1, len(obs), len(obs_spec)))
+    # else:
+    for i in range(nprocesses-1):
+        parargs.append((params[i*samples_per_process:(i+1)*samples_per_process], output, r, arginput, nr, i, len(obs), len(obs_spec)))
+    parargs.append((params[(nprocesses-1)*samples_per_process:], output, r, arginput, nr, nprocesses-1, len(obs), len(obs_spec)))
 
     # tic=time()
     with Pool(processes = nprocesses) as pool:
@@ -263,3 +259,4 @@ def compute_2term(np_theta):
         arcis_spec_2[i]=np.mean(arcis_spec[2*i:2*i+2], axis=0)
     
     return arcis_spec_2
+'''
