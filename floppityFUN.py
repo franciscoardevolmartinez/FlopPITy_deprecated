@@ -154,8 +154,8 @@ def compute(params, nprocesses, output, arginput, ynorm, r, nr, obs, obs_spec):
         parargs.append((params[(args.processes-1)*samples_per_process:], args.output, r, args.input, freeT, nTpoints, nr,args.processes-1, len(obs), len(obs_spec)))
     else:
         for i in range(nprocesses-1):
-            parargs.append((params[i*samples_per_process:(i+1)*samples_per_process], output, r, arginput, freeT, 0, nr, i, len(obs), len(obs_spec)))
-        parargs.append((params[(nprocesses-1)*samples_per_process:], output, r, arginput, freeT, 0, nr, nprocesses-1, len(obs), len(obs_spec)))
+            parargs.append((params[i*samples_per_process:(i+1)*samples_per_process], output, r, arginput, nr, i, len(obs), len(obs_spec)))
+        parargs.append((params[(nprocesses-1)*samples_per_process:], output, r, arginput, nr, nprocesses-1, len(obs), len(obs_spec)))
 
     # tic=time()
     with Pool(processes = nprocesses) as pool:
