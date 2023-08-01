@@ -14,6 +14,7 @@ logging.getLogger('matplotlib').setLevel(logging.WARNING)
 import os
 from tqdm import trange
 from multiprocessing import Process
+from multiprocessing import Process, Pool
 
 #### There should be at least two functions in this file:
 ####   - One called 'read_input' that returns a list with the names of the parameters, the prior bounds (as a list of tuples, only support uniform priors for now), 
@@ -21,14 +22,14 @@ from multiprocessing import Process
 ####   - One called simulator that returns simulated spectra
 
 
-def read_input(inputfile, twoterms):
+def read_input(args):
     
     os.system('cp '+args.input + ' '+args.output+'/input_ARCiS.dat')
 
     args.input = args.output+'/input_ARCiS.dat'
     
     inp = []
-    with open(inputfile, 'rb') as arcis_input:
+    with open(args.input, 'rb') as arcis_input:
         for lines in arcis_input:
             inp.append(str(lines).replace('\\n','').replace("b'","").replace("'", ""))
     clean_in = []
@@ -59,7 +60,7 @@ def read_input(inputfile, twoterms):
                 parnames.append('x')
                 prior_bounds.append([0,1])
                 i+=3
-            elif twoterms:
+            elif args.twoterms:
                 if clean_in[i][16:-1]=='Rp' or clean_in[i][16:-1]=='loggP':
                     parnames.append(clean_in[i][16:-1])
                     if clean_in[i+3]=='fitpar:log=.true.':
@@ -184,8 +185,8 @@ def simulator(parameters, directory, r, input_file, freeT, nTpoints, nr, n, n_ob
     
     return arcis_spec
 
-def compute(np_theta, nprocesses, output, arginput, ynorm, r, nr, obs, obs_spec):
-    samples_per_process = len(np_theta)//nprocesses
+def compute(params, nprocesses, output, arginput, ynorm, r, nr, obs, obs_spec):
+    samples_per_process = len(params)//nprocesses
 
     print('Samples per process: ', samples_per_process)
     freeT=False
@@ -198,10 +199,14 @@ def compute(np_theta, nprocesses, output, arginput, ynorm, r, nr, obs, obs_spec)
     else:
         params = np_theta
         '''
-    # if freeT:
-    #     for i in range(nprocesses-1):
-    #         parargs.append((params[i*samples_per_process:(i+1)*samples_per_process], args.output, r, args.input, freeT, nTpoints, nr,i, len(obs), len(obs_spec)))
-    #     parargs.append((params[(args.processes-1)*samples_per_process:], args.output, r, args.input, freeT, nTpoints, nr,args.processes-1, len(obs), len(obs_spec)))
+    # if ynorm:
+    #     params=yscaler.inverse_transform(np_theta)
+    # else:
+    #     params = np_theta  #### QUICK FIX, MAKE IT GOOD!!!
+    if freeT:
+        for i in range(nprocesses-1):
+            parargs.append((params[i*samples_per_process:(i+1)*samples_per_process], args.output, r, args.input, freeT, nTpoints, nr,i, len(obs), len(obs_spec)))
+        parargs.append((params[(args.processes-1)*samples_per_process:], args.output, r, args.input, freeT, nTpoints, nr,args.processes-1, len(obs), len(obs_spec)))
     else:
         for i in range(nprocesses-1):
             parargs.append((params[i*samples_per_process:(i+1)*samples_per_process], output, r, arginput, freeT, 0, nr, i, len(obs), len(obs_spec)))

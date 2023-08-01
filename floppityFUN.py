@@ -14,7 +14,6 @@ from time import time
 import logging
 import os
 logging.getLogger('matplotlib').setLevel(logging.WARNING)
-from multiprocessing import Process, Pool
 from simulator import *
 
 ### (Log) likelihood. Necessary to compute (log) evidence
@@ -124,14 +123,14 @@ class Normalizer():
         self.bounds = prior_bounds
         
     def transform(self, Y):
-        assert len(prior_bounds) == Y.shape[1], 'Dimensionality of prior and parameters doesn\'t match!'
+        assert len(self.bounds) == Y.shape[1], 'Dimensionality of prior and parameters doesn\'t match!'
         Yt = np.empty(Y.shape)
         for i in range(Y.shape[1]):
             Yt[:,i] = 2*(Y[:,i] - self.bounds[i][0])/(self.bounds[i][1] - self.bounds[i][0])-1
         return Yt
     
     def inverse_transform(self, Y):
-        assert len(prior_bounds) == Y.shape[1], 'Dimensionality of prior and parameters doesn\'t match!'
+        assert len(self.bounds) == Y.shape[1], 'Dimensionality of prior and parameters doesn\'t match!'
         Yi = np.empty(Y.shape)
         for i in range(Y.shape[1]):
             Yi[:,i] = (Y[:,i]+1)*(self.bounds[i][1] - self.bounds[i][0])/2 + self.bounds[i][0]
@@ -139,16 +138,16 @@ class Normalizer():
 
 
 ### COMPUTE FORWARD MODELS FROM NORMALISED PARAMETERS
-def compute(np_theta, nprocesses, output, arginput, ynorm, r, nr, obs, obs_spec):
-    samples_per_process = len(np_theta)//nprocesses
+def compute(params, nprocesses, output, arginput, ynorm, r, nr, obs, obs_spec):
+    samples_per_process = len(params)//nprocesses
 
     print('Samples per process: ', samples_per_process)
     freeT=False
     parargs=[]
-    if ynorm:
-        params=yscaler.inverse_transform(np_theta)
-    else:
-        params = np_theta
+    # if ynorm:
+    #     params=yscaler.inverse_transform(np_theta)
+    # else:
+    #     params = np_theta
     if freeT:
         for i in range(nprocesses-1):
             parargs.append((params[i*samples_per_process:(i+1)*samples_per_process], args.output, r, args.input, freeT, nTpoints, nr,i, len(obs), len(obs_spec)))

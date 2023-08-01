@@ -90,7 +90,7 @@ os.system('cp '+args.input + ' '+args.output+'/input_'+args.forward+'.dat')
 
 args.input = args.output+'/input_'+args.forward+'.dat'
 
-parnames, prior_bounds, obs, obs_spec, noise_spec, nr = read_input(args.input, args.twoterms)
+parnames, prior_bounds, obs, obs_spec, noise_spec, nr = read_input(args)
 #####################
 
 ##### READ INPUT FILE
@@ -185,6 +185,8 @@ if args.resume:
         print('Reading xscaler.p ...')
         logging.info('Reading xscaler.p ...')
         xscaler=pickle.load(open(args.output+'/xscaler.p', 'rb'))
+    else:
+        xscaler=None
     print('Reading samples.p ...')
     logging.info('Reading samples.p ...')
     if args.ynorm:
@@ -193,6 +195,8 @@ if args.resume:
         print('Reading pca.p ...')
         logging.info('Reading pca.p ...')
         pca=pickle.load(open(args.output+'/pca.p', 'rb'))
+    else:
+        pca=None
     num_rounds+=r
     
 while r<num_rounds:
@@ -225,14 +229,18 @@ while r<num_rounds:
         with open(args.output+'/Figures/corner_'+str(r)+'.jpg', 'wb') as file_corner:
             plt.savefig(file_corner, bbox_inches='tight')
         plt.close('all')
-
+        
+        if args.ynorm:
+            params=yscaler.inverse_transform(np_theta[r])
+        else:
+            params = np_theta[r]  #### QUICK FIX, MAKE IT GOOD!!!
         
         ##### COMPUTE MODELS
         tic_compute=time()
         if args.twoterms:
             arcis_spec[r] = compute_2term(np_theta[r])
         else:
-            arcis_spec[r] = compute(np_theta[r], args.processes, args.output,args.input, args.ynorm, r, nr, obs, obs_spec)
+            arcis_spec[r] = compute(params, args.processes, args.output,args.input, args.ynorm, r, nr, obs, obs_spec)
         
           
         ##### CHECK IF ALL MODELS WERE COMPUTED AND COMPUTE REMAINING IF NOT
