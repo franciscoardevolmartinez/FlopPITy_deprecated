@@ -34,11 +34,7 @@ def parse_args():
     parser.add_argument('-hidden', type=int, default=32)
     parser.add_argument('-transforms', type=int, default=5)
     parser.add_argument('-do_pca', action='store_true')
-    
-    #######
     parser.add_argument('-naug', type=int, default=1, help='Data augmentation factor')
-    #######
-    
     parser.add_argument('-n_pca', type=int, default=50)
     parser.add_argument('-embed_size', type=int, default=64)
     parser.add_argument('-embedding', action='store_true')
