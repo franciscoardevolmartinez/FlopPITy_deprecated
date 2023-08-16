@@ -84,6 +84,7 @@ def read_input(args):
                 elif clean_in[i+3]=='fitpar:log=.false.':
                     prior_bounds.append([float(clean_in[i+1][11:].replace('d','e')), float(clean_in[i+2][11:].replace('d','e'))])
                 i+=4
+        # if 'fitpar:keyword'
         else:
             i+=1
 
@@ -174,8 +175,20 @@ def simulator(parameters, directory, r, input_file, nr, n, n_obs, size):
         except:
             print('Couldn\'t store model ', model_dir)
             logging.info('Couldn\'t store model ', model_dir)
-        
-        np.save(directory+'/T_round_'+str(r)+str(n)+'.npy',T)
+            
+        tname = directory+'/T_round_'+str(r)+str(n)
+        add = 'I'
+        np.save(tname+'.npy', T)
+        # if os.path.isfile(tname+'.npy') == False:
+        #     np.save(tname+'.npy', T)
+        # else:
+        #     while os.path.isfile(tname+'.npy') == True:
+        #         print(tname+'.npy already exists, saving as '+tname+add+'.npy')
+        #         logging.info(tname+'.npy already exists, saving as '+tname+add+'.npy')
+        #         tname = tname+add
+        #         if os.path.isfile(tname+'.npy') == False:
+        #             np.save(tname+'.npy', T)
+        #             break
         np.save(directory+'/P.npy',P)
     
     return arcis_spec

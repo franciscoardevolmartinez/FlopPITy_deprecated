@@ -15,6 +15,8 @@ import os
 logging.getLogger('matplotlib').setLevel(logging.WARNING)
 import matplotlib.pyplot as plt
 from corner import corner
+from sbi.inference import MCMCPosterior, RejectionPosterior
+from sbi.inference import DirectPosterior, likelihood_estimator_based_potential
 from floppityFUN import *
 from simulator import *
 
@@ -32,6 +34,11 @@ def parse_args():
     parser.add_argument('-hidden', type=int, default=32)
     parser.add_argument('-transforms', type=int, default=5)
     parser.add_argument('-do_pca', action='store_true')
+    
+    #######
+    parser.add_argument('-naug', type=int, default=1, help='Data augmentation factor')
+    #######
+    
     parser.add_argument('-n_pca', type=int, default=50)
     parser.add_argument('-embed_size', type=int, default=64)
     parser.add_argument('-embedding', action='store_true')
@@ -145,6 +152,7 @@ good_rounds=[]
 
 np_theta = {}
 arcis_spec = {}
+T = {}
 
 r=0
 repeat=0
@@ -308,7 +316,7 @@ while r<num_rounds:
                 pickle.dump(logZs, file_evidence)
         print('Preprocessing data...')
         logging.info('Preprocessing data...')
-        theta_aug, x, xscaler, pca = preprocess(np_theta[r], arcis_spec[r], r, samples_per_round, obs_spec, noise_spec, args.do_pca, args.n_pca, args.xnorm, args.output, args.device)
+        theta_aug, x, xscaler, pca = preprocess(np_theta[r], arcis_spec[r], r, samples_per_round, obs_spec, noise_spec, args.naug, args.do_pca, args.n_pca, args.xnorm, args.output, args.device)
         reject=False
         if r>1 and abs(logZs[-1][0]-logZs[-2][0])<args.Ztol:
             print('ΔZ < Ztol')
@@ -365,11 +373,16 @@ while r<num_rounds:
         default_x = xscaler.transform(obs_spec.reshape(1,-1))
     else:
         default_x = obs_spec.reshape(1,-1)
+        
+    potential_fn, theta_transform = likelihood_estimator_based_potential(posterior_estimator, proposal, default_x)
+    # posterior = MCMCPosterior(potential_fn, proposal=proposal, theta_transform=theta_transform).set_default_x(default_x)
+    # posterior = RejectionPosterior(potential_fn, proposal=proposal, theta_transform=theta_transform)
+    posterior = DirectPosterior(posterior_estimator, prior=prior).set_default_x(default_x)
 
     print('\n Time elapsed: '+str(time()-tic))
     logging.info('Time elapsed: '+str(time()-tic))
     train_time.append(time()-tic)
-    posterior = inference_object.build_posterior(sample_with='rejection').set_default_x(default_x)
+    # posterior = inference_object.build_posterior().set_default_x(default_x)
     posteriors.append(posterior)
     print('Saving posteriors ')
     logging.info('Saving posteriors ')
@@ -392,6 +405,7 @@ while r<num_rounds:
         print('Saving samples ')
         logging.info('Saving samples ')
         tsamples = posterior.sample((args.npew,))
+        
         if args.ynorm:
             samples.append(yscaler.inverse_transform(tsamples.cpu().detach().numpy()))
         else:

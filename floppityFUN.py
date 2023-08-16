@@ -164,8 +164,8 @@ def compute(params, nprocesses, output, arginput, ynorm, r, nr, obs, obs_spec):
     arcis_spec = np.concatenate(arcis_specs)
     for j in range(nprocesses):
         os.system('mv '+output + '/round_'+str(r)+str(j)+'_out/log.dat '+output +'/ARCiS_logs/log_'+str(r)+str(j)+'.dat')
-        os.system('rm -rf '+output + '/round_'+str(r)+str(j)+'_out/')
-        os.system('rm -rf '+output + '/round_'+str(r)+str(j)+'_samples.dat')
+        # os.system('rm -rf '+output + '/round_'+str(r)+str(j)+'_out/')
+        # os.system('rm -rf '+output + '/round_'+str(r)+str(j)+'_samples.dat')
 # print('Tim/fo(('Time elapsed: ', time()-tic))
     
     return arcis_spec
@@ -210,9 +210,9 @@ def compute_2term(np_theta):
     return arcis_spec_2
     
 ### Preprocessing for spectra and parameters
-def preprocess(np_theta, arcis_spec, r, samples_per_round, obs_spec,noise_spec,do_pca, n_pca, xnorm, output, device):
-    theta_aug = torch.tensor(np_theta, dtype=torch.float32, device=device)
-    arcis_spec_aug = arcis_spec + noise_spec*np.random.randn(samples_per_round, obs_spec.shape[0]) #surely this can be changed to arcis_spec.shape ??
+def preprocess(np_theta, arcis_spec, r, samples_per_round, obs_spec,noise_spec,naug,do_pca, n_pca, xnorm, output, device):
+    theta_aug = torch.tensor(np.repeat(np_theta, naug, axis=0), dtype=torch.float32, device=device)
+    arcis_spec_aug = np.repeat(arcis_spec,naug,axis=0) + noise_spec*np.random.randn(samples_per_round*naug, obs_spec.shape[0]) #surely this can be changed to arcis_spec.shape ?? Apparently not
     
     xscaler=None
     pca=None
