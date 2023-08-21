@@ -370,15 +370,15 @@ while r<num_rounds:
     else:
         default_x = obs_spec.reshape(1,-1)
         
-    potential_fn, theta_transform = likelihood_estimator_based_potential(posterior_estimator, proposal, default_x)
+    # potential_fn, theta_transform = likelihood_estimator_based_potential(posterior_estimator, proposal, default_x)
     # posterior = MCMCPosterior(potential_fn, proposal=proposal, theta_transform=theta_transform).set_default_x(default_x)
     # posterior = RejectionPosterior(potential_fn, proposal=proposal, theta_transform=theta_transform)
-    posterior = DirectPosterior(posterior_estimator, prior=prior).set_default_x(default_x)
+    # posterior = DirectPosterior(posterior_estimator, prior=prior).set_default_x(default_x)
 
     print('\n Time elapsed: '+str(time()-tic))
     logging.info('Time elapsed: '+str(time()-tic))
     train_time.append(time()-tic)
-    # posterior = inference_object.build_posterior().set_default_x(default_x)
+    posterior = inference_object.build_posterior(sample_with='rejection').set_default_x(default_x)
     posteriors.append(posterior)
     print('Saving posteriors ')
     logging.info('Saving posteriors ')
