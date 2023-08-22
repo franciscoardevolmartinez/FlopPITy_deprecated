@@ -164,8 +164,8 @@ def compute(params, nprocesses, output, arginput, ynorm, r, nr, obs, obs_spec):
     arcis_spec = np.concatenate(arcis_specs)
     for j in range(nprocesses):
         os.system('mv '+output + '/round_'+str(r)+str(j)+'_out/log.dat '+output +'/ARCiS_logs/log_'+str(r)+str(j)+'.dat')
-        # os.system('rm -rf '+output + '/round_'+str(r)+str(j)+'_out/')
-        # os.system('rm -rf '+output + '/round_'+str(r)+str(j)+'_samples.dat')
+        os.system('rm -rf '+output + '/round_'+str(r)+str(j)+'_out/')
+        os.system('rm -rf '+output + '/round_'+str(r)+str(j)+'_samples.dat')
 # print('Tim/fo(('Time elapsed: ', time()-tic))
     
     return arcis_spec
