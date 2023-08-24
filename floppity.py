@@ -9,6 +9,7 @@ import pickle
 import numpy as np
 from sbi import utils as utils
 from sbi.inference import SNPE_C
+from sbi.utils.get_nn_models import posterior_nn
 from time import time
 import logging
 import os
@@ -31,8 +32,9 @@ def parse_args():
     parser.add_argument('-num_rounds', type=int, default=10, help='Number of rounds to train for. Default: 10.')
     parser.add_argument('-forward', type=str, default='ARCiS')
     parser.add_argument('-samples_per_round', type=int, default=1000, help='Number of samples to draw for training each round. Default: 1000.')
-    parser.add_argument('-hidden', type=int, default=32)
+    parser.add_argument('-hidden', type=int, default=50)
     parser.add_argument('-transforms', type=int, default=5)
+    parser.add_argument('-custom_nsf', action='store_true')
     parser.add_argument('-do_pca', action='store_true')
     parser.add_argument('-naug', type=int, default=1, help='Data augmentation factor')
     parser.add_argument('-n_pca', type=int, default=50)
@@ -135,7 +137,11 @@ prior = utils.BoxUniform(low=prior_min.to(args.device, non_blocking=True), high=
 num_rounds = args.num_rounds
 samples_per_round = args.samples_per_round
 
-inference = SNPE_C(prior = prior, density_estimator='nsf', device=args.device)
+if args.custom_nsf:
+    density_estimator_build_fun = posterior_nn(model="nsf", num_transforms=args.transforms, hidden_features=args.hidden, num_bins=args.bins, embedding_net=summary)
+    inference = SNPE_C(prior = prior, density_estimator=density_estimator_build_fun, device=args.device)
+else:
+    inference = SNPE_C(prior = prior, density_estimator='nsf', device=args.device)
 
 proposal=prior
 posteriors=[]
@@ -275,7 +281,9 @@ while r<num_rounds:
         logging.info('Time elapsed: '+ str(time()-tic_compute))
         print('Time elapsed: ', time()-tic_compute)
 
-            
+    theta_aug, x, xscaler, pca = preprocess(np_theta[r], arcis_spec[r], r, samples_per_round, obs_spec, noise_spec, args.naug, args.do_pca, args.n_pca, args.xnorm, args.output, args.device)
+    
+    
     ##### COMPUTE EVIDENCE
     if r>0:
         logging.info('Computing evidence...')
@@ -286,7 +294,7 @@ while r<num_rounds:
         print('\n')
         logZs.append(logZ)
     
-    
+    '''
     ###### REJECT ROUND IF NECESSARY
     if args.dont_reject and r>1 and logZs[-1][0]<logZs[-2][0] and logZs[-1][1]<logZs[-2][1]: #change logZs[-2][2] to logZs[-2][0]
         # If evidence doesn't improve we repeat last step
@@ -305,11 +313,13 @@ while r<num_rounds:
             break
     else:
         repeat=0
-        if r>0:
-            with open(args.output+'/evidence.p', 'wb') as file_evidence:
-                print('Saving evidence...')
-                logging.info('Saving evidence...')
-                pickle.dump(logZs, file_evidence)
+    '''
+    if r>0:
+        with open(args.output+'/evidence.p', 'wb') as file_evidence:
+            print('Saving evidence...')
+            logging.info('Saving evidence...')
+            pickle.dump(logZs, file_evidence)
+    '''
         print('Preprocessing data...')
         logging.info('Preprocessing data...')
         theta_aug, x, xscaler, pca = preprocess(np_theta[r], arcis_spec[r], r, samples_per_round, obs_spec, noise_spec, args.naug, args.do_pca, args.n_pca, args.xnorm, args.output, args.device)
@@ -328,7 +338,7 @@ while r<num_rounds:
             r+=1
             good_rounds.append(0)
 
-            
+    '''        
     ###### SAVE TRAINING EXAMPLES
     logging.info('Saving training examples...')
     print('Saving training examples...')
@@ -348,10 +358,12 @@ while r<num_rounds:
     ###   FIX THIS!!!!!!
     
     # Only append training examples if the round is not rejected
-    if not reject:
-        inference_object = inference.append_simulations(theta_aug, x, proposal=proposal)
-        with open(args.output+'/inference.p', 'wb') as file_inference:
-            pickle.dump(inference, file_inference)
+    #if not reject:
+    logging.info('Appending simulations...')
+    print('Appending simulations...')
+    inference_object = inference.append_simulations(theta_aug, x, proposal=proposal)
+    with open(args.output+'/inference.p', 'wb') as file_inference:
+        pickle.dump(inference, file_inference)
 
     posterior_estimator = inference_object.train(show_train_summary=True, stop_after_epochs=args.patience, num_atoms=args.atoms, force_first_round_loss=True, retrain_from_scratch=args.retrain_from_scratch, use_combined_loss=True) #use_combined_loss
 
@@ -378,13 +390,13 @@ while r<num_rounds:
     print('\n Time elapsed: '+str(time()-tic))
     logging.info('Time elapsed: '+str(time()-tic))
     train_time.append(time()-tic)
-    posterior = inference_object.build_posterior(sample_with='rejection').set_default_x(default_x)
+    posterior = inference_object.build_posterior(posterior_estimator)
     posteriors.append(posterior)
     print('Saving posteriors ')
     logging.info('Saving posteriors ')
     with open(args.output+'/posteriors.pt', 'wb') as file_posteriors:
         torch.save(posteriors, file_posteriors)
-    proposal = posterior
+    proposal = posterior.set_default_x(default_x)
     
     
     ##### CALCULATE KL DIVERGENCE (SEE HOW MUCH THE POSTERIOR CHANGED FROM LAST ROUND)
@@ -397,18 +409,18 @@ while r<num_rounds:
 
 
     ### DRAW npew SAMPLES (JUST FOR PLOTTING)
-    if not reject:
-        print('Saving samples ')
-        logging.info('Saving samples ')
-        tsamples = posterior.sample((args.npew,))
-        
-        if args.ynorm:
-            samples.append(yscaler.inverse_transform(tsamples.cpu().detach().numpy()))
-        else:
-            samples.append(tsamples.cpu().detach().numpy())
+    # if not reject:
+    print('Saving samples ')
+    logging.info('Saving samples ')
+    tsamples = proposal.sample((args.npew,))
 
-        with open(args.output+'/samples.p', 'wb') as file_samples:
-            pickle.dump(samples, file_samples)
+    if args.ynorm:
+        samples.append(yscaler.inverse_transform(tsamples.cpu().detach().numpy()))
+    else:
+        samples.append(tsamples.cpu().detach().numpy())
+
+    with open(args.output+'/samples.p', 'wb') as file_samples:
+        pickle.dump(samples, file_samples)
 
     print('\n')
     print('##### 1D marginals #####')
@@ -417,6 +429,7 @@ while r<num_rounds:
     post2txt(samples[-1], parnames,prior_bounds)
     print('\n')
     
+    r+=1
     
 print('Inference ended.')    
 logging.info('Inference ended.')

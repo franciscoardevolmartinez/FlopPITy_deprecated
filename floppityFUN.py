@@ -8,7 +8,7 @@ import warnings
 warnings.filterwarnings("ignore", category=UserWarning)
 import pickle
 import numpy as np
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, QuantileTransformer
 from sklearn.decomposition import PCA
 from time import time
 import logging
@@ -77,14 +77,14 @@ class SummaryNet(nn.Module):
     def __init__(self, size_in, size_out):
         super().__init__()
         inter = int((size_in+size_out)/2)
-        self.fc1 = nn.Linear(size_in, inter)
-        self.fc2 = nn.Linear(inter, inter)
-        self.fc3= nn.Linear(inter, size_out)
+        self.fc1 = nn.Linear(size_in, size_out)
+        # self.fc2 = nn.Linear(inter, inter)
+        # self.fc3= nn.Linear(inter, size_out)
 
     def forward(self, x):
-        x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
-        x = self.fc3(x)
+        # x = F.relu(self.fc1(x))
+        # x = F.relu(self.fc2(x))
+        x = self.fc1(x)
         return x
     
 ### Display 1D marginals in console
