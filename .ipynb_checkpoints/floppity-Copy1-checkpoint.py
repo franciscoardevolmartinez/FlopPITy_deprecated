@@ -361,8 +361,8 @@ while r<num_rounds:
     
     # Only append training examples if the round is not rejected
     #if not reject:
-    # logging.info('Appending simulations...')
-    # print('Appending simulations...')
+    logging.info('Appending simulations...')
+    print('Appending simulations...')
     # inference_object = inference.append_simulations(theta_aug, x, proposal=proposal)
     # with open(args.output+'/inference.p', 'wb') as file_inference:
     #     pickle.dump(inference, file_inference)
