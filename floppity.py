@@ -143,9 +143,7 @@ if args.custom_nsf:
 else:
     inference = SNPE_C(prior = prior, density_estimator='nsf', device=args.device)
 
-proposals=[]
-proposals.append(prior)
-# proposal=prior
+proposal=prior
 posteriors=[]
 
 samples=[]
@@ -225,7 +223,7 @@ while r<num_rounds:
         ##### DRAW SAMPLES
         logging.info('Drawing '+str(samples_per_round)+' samples')
         print('Samples per round: ', samples_per_round)
-        theta = proposals[r].sample((samples_per_round,))
+        theta = proposal.sample((samples_per_round,))
         np_theta[r] = theta.cpu().detach().numpy().reshape([-1, len(prior_bounds)])
         
         
@@ -283,18 +281,18 @@ while r<num_rounds:
         logging.info('Time elapsed: '+ str(time()-tic_compute))
         print('Time elapsed: ', time()-tic_compute)
 
-    theta_aug, x, xscaler, pca = preprocess(np_theta[r], arcis_spec, r, samples_per_round, obs_spec, noise_spec, args.naug, args.do_pca, args.n_pca, args.xnorm, args.output, args.device)
+    theta_aug, x, xscaler, pca = preprocess(np_theta[r], arcis_spec[r], r, samples_per_round, obs_spec, noise_spec, args.naug, args.do_pca, args.n_pca, args.xnorm, args.output, args.device)
     
     
-    ##### COMPUTE EVIDENCE
-    # if r>0:
-    #     logging.info('Computing evidence...')
-    #     logZ = evidence(posteriors[-1], prior, arcis_spec[r], np_theta[r], obs_spec, noise_spec, args.do_pca, args.xnorm, xscaler, pca)
-    #     print('\n')
-    #     print('ln (Z) = '+ str(round(logZ[0], 2))+' ('+str(round(logZ[1],2))+', '+str(round(logZ[2],2))+')')
-    #     logging.info('ln (Z) = '+ str(round(logZ[0], 2))+' ('+str(round(logZ[1],2))+', '+str(round(logZ[2],2))+')')
-    #     print('\n')
-    #     logZs.append(logZ)
+    #### COMPUTE EVIDENCE
+    if r>0:
+        logging.info('Computing evidence...')
+        logZ = evidence(posteriors[-1], prior, arcis_spec[r], np_theta[r], obs_spec, noise_spec, args.do_pca, args.xnorm, xscaler, pca)
+        print('\n')
+        print('ln (Z) = '+ str(round(logZ[0], 2))+' ('+str(round(logZ[1],2))+', '+str(round(logZ[2],2))+')')
+        logging.info('ln (Z) = '+ str(round(logZ[0], 2))+' ('+str(round(logZ[1],2))+', '+str(round(logZ[2],2))+')')
+        print('\n')
+        logZs.append(logZ)
     
     '''
     ###### REJECT ROUND IF NECESSARY
@@ -360,19 +358,13 @@ while r<num_rounds:
     ###   FIX THIS!!!!!!
     
     # Only append training examples if the round is not rejected
-    #if not reject:
-    # logging.info('Appending simulations...')
-    # print('Appending simulations...')
-    # inference_object = inference.append_simulations(theta_aug, x, proposal=proposal)
-    # with open(args.output+'/inference.p', 'wb') as file_inference:
-    #     pickle.dump(inference, file_inference)
+    # if not reject:
+    logging.info('Appending simulations...')
+    print('Appending simulations...')
+    inference_object = inference.append_simulations(theta_aug, x, proposal=proposal)
+    with open(args.output+'/inference.p', 'wb') as file_inference:
+        pickle.dump(inference, file_inference)
     
-    density_estimator_build_fun = posterior_nn(model="nsf", num_transforms=args.transforms, hidden_features=args.hidden, num_bins=args.bins, embedding_net=summary)
-    inference = SNPE_C(prior = prior, density_estimator=density_estimator_build_fun, device=args.device)
-    # i=0
-    for i in range(r+1):
-        inference_object=inference.append_simulations(theta_aug, x[i], proposal=proposals[i])
-        # i+=1
 
     posterior_estimator = inference_object.train(show_train_summary=True, stop_after_epochs=args.patience, num_atoms=args.atoms, force_first_round_loss=True, retrain_from_scratch=args.retrain_from_scratch, use_combined_loss=True) #use_combined_loss
 
@@ -383,11 +375,11 @@ while r<num_rounds:
         logging.info('Transforming observation...')
         default_x_pca = pca.transform(obs_spec.reshape(1,-1))
         if args.xnorm:
-            default_x = xscaler[r].transform(default_x_pca)
+            default_x = xscaler.transform(default_x_pca)
         else:
             default_x = default_x_pca
     elif args.xnorm:
-        default_x = xscaler[r].transform(obs_spec.reshape(1,-1))
+        default_x = xscaler.transform(obs_spec.reshape(1,-1))
     else:
         default_x = obs_spec.reshape(1,-1)
         
@@ -407,7 +399,7 @@ while r<num_rounds:
     with open(args.output+'/posteriors.pt', 'wb') as file_posteriors:
         torch.save(posteriors, file_posteriors)
     proposal = posterior.set_default_x(default_x)
-    proposals.append(proposal)
+    # proposals.append(proposal)
     
     
     ##### CALCULATE KL DIVERGENCE (SEE HOW MUCH THE POSTERIOR CHANGED FROM LAST ROUND)
