@@ -263,3 +263,5 @@ def preprocess(np_theta, arcis_spec, r, samples_per_round, obs_spec,noise_spec,n
     # x = torch.tensor(x_f, dtype=torch.float32, device=device)
 
     return theta_aug, x_f, xscaler, pca
+
+#Iwannagoback

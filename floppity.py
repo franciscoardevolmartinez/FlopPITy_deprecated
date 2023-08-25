@@ -395,6 +395,7 @@ while r<num_rounds:
     # posterior = MCMCPosterior(potential_fn, proposal=proposal, theta_transform=theta_transform).set_default_x(default_x)
     # posterior = RejectionPosterior(potential_fn, proposal=proposal, theta_transform=theta_transform)
     # posterior = DirectPosterior(posterior_estimator, prior=prior).set_default_x(default_x)
+    #newline
 
     print('\n Time elapsed: '+str(time()-tic))
     logging.info('Time elapsed: '+str(time()-tic))
