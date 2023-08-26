@@ -285,14 +285,14 @@ while r<num_rounds:
     
     
     #### COMPUTE EVIDENCE
-    if r>0:
-        logging.info('Computing evidence...')
-        logZ = evidence(posteriors[-1], prior, arcis_spec[r], np_theta[r], obs_spec, noise_spec, args.do_pca, args.xnorm, xscaler, pca)
-        print('\n')
-        print('ln (Z) = '+ str(round(logZ[0], 2))+' ('+str(round(logZ[1],2))+', '+str(round(logZ[2],2))+')')
-        logging.info('ln (Z) = '+ str(round(logZ[0], 2))+' ('+str(round(logZ[1],2))+', '+str(round(logZ[2],2))+')')
-        print('\n')
-        logZs.append(logZ)
+    # if r>0:
+    #     logging.info('Computing evidence...')
+    #     logZ = evidence(posteriors[-1], prior, arcis_spec[r], np_theta[r], obs_spec, noise_spec, args.do_pca, args.xnorm, xscaler, pca)
+    #     print('\n')
+    #     print('ln (Z) = '+ str(round(logZ[0], 2))+' ('+str(round(logZ[1],2))+', '+str(round(logZ[2],2))+')')
+    #     logging.info('ln (Z) = '+ str(round(logZ[0], 2))+' ('+str(round(logZ[1],2))+', '+str(round(logZ[2],2))+')')
+    #     print('\n')
+    #     logZs.append(logZ)
     
     '''
     ###### REJECT ROUND IF NECESSARY
@@ -314,11 +314,11 @@ while r<num_rounds:
     else:
         repeat=0
     '''
-    if r>0:
-        with open(args.output+'/evidence.p', 'wb') as file_evidence:
-            print('Saving evidence...')
-            logging.info('Saving evidence...')
-            pickle.dump(logZs, file_evidence)
+    # if r>0:
+    #     with open(args.output+'/evidence.p', 'wb') as file_evidence:
+    #         print('Saving evidence...')
+    #         logging.info('Saving evidence...')
+    #         pickle.dump(logZs, file_evidence)
     '''
         print('Preprocessing data...')
         logging.info('Preprocessing data...')
@@ -379,7 +379,7 @@ while r<num_rounds:
         else:
             default_x = default_x_pca
     elif args.xnorm:
-        default_x = xscaler.transform(obs_spec.reshape(1,-1))
+        default_x = xscaler.transform(rm_mean().transform(obs_spec.reshape(1,-1)))
     else:
         default_x = obs_spec.reshape(1,-1)
         
@@ -392,13 +392,13 @@ while r<num_rounds:
     print('\n Time elapsed: '+str(time()-tic))
     logging.info('Time elapsed: '+str(time()-tic))
     train_time.append(time()-tic)
-    posterior = inference_object.build_posterior(posterior_estimator)
+    posterior = inference_object.build_posterior(posterior_estimator).set_default_x(default_x)
     posteriors.append(posterior)
     print('Saving posteriors ')
     logging.info('Saving posteriors ')
     with open(args.output+'/posteriors.pt', 'wb') as file_posteriors:
         torch.save(posteriors, file_posteriors)
-    proposal = posterior.set_default_x(default_x)
+    proposal = posterior
     # proposals.append(proposal)
     
     
