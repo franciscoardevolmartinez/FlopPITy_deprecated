@@ -142,6 +142,7 @@ class rm_mean():
         
     def transform(self, arcis_spec):
         normed = np.empty([arcis_spec.shape[0],arcis_spec.shape[1]+1])
+        print('Removing the mean')
         for i in trange(len(arcis_spec)):
             xbar=np.mean(arcis_spec[i])
             normed[i][:-1] = arcis_spec[i]-xbar
@@ -151,6 +152,7 @@ class rm_mean():
     
     def inverse_transform(self, normed):
         arcis_spec = np.empty([normed.shape[0],normed.shape[1]-1])
+        print('Adding back the mean')
         for i in trange(len(normed)):
             xbar=normed[i][-1]
             arcis_spec[i] = normed[i]+xbar
@@ -158,7 +160,7 @@ class rm_mean():
         return arcis_spec
 
 ### COMPUTE FORWARD MODELS FROM NORMALISED PARAMETERS
-def compute(params, nprocesses, output, arginput, ynorm, r, nr, obs, obs_spec):
+def compute(params, nprocesses, output, arginput, arginput2, n_global, which, ynorm, r, nr, obs, obs_spec):
     samples_per_process = len(params)//nprocesses
 
     print('Samples per process: ', samples_per_process)
@@ -168,14 +170,14 @@ def compute(params, nprocesses, output, arginput, ynorm, r, nr, obs, obs_spec):
     #     params=yscaler.inverse_transform(np_theta)
     # else:
     #     params = np_theta
-    if freeT:
-        for i in range(nprocesses-1):
-            parargs.append((params[i*samples_per_process:(i+1)*samples_per_process], args.output, r, args.input, freeT, nTpoints, nr,i, len(obs), len(obs_spec)))
-        parargs.append((params[(args.processes-1)*samples_per_process:], args.output, r, args.input, freeT, nTpoints, nr,args.processes-1, len(obs), len(obs_spec)))
-    else:
-        for i in range(nprocesses-1):
-            parargs.append((params[i*samples_per_process:(i+1)*samples_per_process], output, r, arginput, nr, i, len(obs), len(obs_spec)))
-        parargs.append((params[(nprocesses-1)*samples_per_process:], output, r, arginput, nr, nprocesses-1, len(obs), len(obs_spec)))
+    # if freeT:
+    #     for i in range(nprocesses-1):
+    #         parargs.append((params[i*samples_per_process:(i+1)*samples_per_process], args.output, r, args.input, freeT, nTpoints, nr,i, len(obs), len(obs_spec)))
+    #     parargs.append((params[(args.processes-1)*samples_per_process:], args.output, r, args.input, freeT, nTpoints, nr,args.processes-1, len(obs), len(obs_spec)))
+    # else:
+    for i in range(nprocesses-1):
+        parargs.append((params[i*samples_per_process:(i+1)*samples_per_process], output, r, arginput, arginput2, n_global, which, nr, i, len(obs), len(obs_spec)))
+    parargs.append((params[(nprocesses-1)*samples_per_process:], output, r, arginput, arginput2, n_global, which, nr, nprocesses-1, len(obs), len(obs_spec)))
 
     # tic=time()
     with Pool(processes = nprocesses) as pool:
@@ -190,41 +192,45 @@ def compute(params, nprocesses, output, arginput, ynorm, r, nr, obs, obs_spec):
     
     return arcis_spec
 
-def compute_2term(np_theta):
-    samples_per_process = 2*len(np_theta)//args.processes
+def compute_2term(params1,nprocesses, output, arginput, ynorm, r, nr, obs, obs_spec):
+    samples_per_process = 2*len(params1)//nprocesses
 
     print('Samples per process: ', samples_per_process)
 
     parargs=[]
-    if args.ynorm:
-        params1=yscaler.inverse_transform(np_theta)
-    else:
-        params1 = np_theta
+    # if args.ynorm:
+    #     params1=yscaler.inverse_transform(np_theta)
+    # else:
+    #     params1 = np_theta
     print(params1.shape)
-    params= np.zeros([2*params1.shape[0], (params1.shape[1]-2)//2+2])
-    params[::2,:-2] = params1[:,:-2][:,::2]
-    params[1::2,:-2] = params1[:,:-2][:,1::2]
+    params= np.zeros([2*params1.shape[0], (params1.shape[1]-5)//2+5])
+    print(params.shape)
+    params[::2,3:-2] = params1[:,3:-2][:,::2]
+    params[1::2,3:-2] = params1[:,3:-2][:,1::2]
+    params[::2,0:3] = params1[:,0:3]
+    params[1::2,0:3]= params1[:,0:3]
     params[::2,-2:] = params1[:,-2:]
     params[1::2,-2:] = params1[:,-2:]
+    print
     # params=params1.reshape([len(np_theta[0])//2, 2*samples_per_round])
-    if freeT:
-        for i in range(args.processes-1):
-            parargs.append((params[i*samples_per_process:(i+1)*samples_per_process], args.output, r, args.input, freeT, nTpoints,nr, i, len(obs), len(obs_spec)))
-        parargs.append((params[(args.processes-1)*samples_per_process:], args.output, r, args.input, freeT, nTpoints,nr, args.processes-1, len(obs), len(obs_spec)))
-    else:
-        for i in range(args.processes-1):
-            parargs.append((params[i*samples_per_process:(i+1)*samples_per_process], args.output, r, args.input, freeT, 0,nr, i, len(obs), len(obs_spec)))
-        parargs.append((params[(args.processes-1)*samples_per_process:], args.output, r, args.input, freeT, 0, nr,args.processes-1, len(obs), len(obs_spec)))
+    # if freeT:
+    #     for i in range(args.processes-1):
+    #         parargs.append((params[i*samples_per_process:(i+1)*samples_per_process], args.output, r, args.input, freeT, nTpoints,nr, i, len(obs), len(obs_spec)))
+    #     parargs.append((params[(args.processes-1)*samples_per_process:], args.output, r, args.input, freeT, nTpoints,nr, args.processes-1, len(obs), len(obs_spec)))
+    # else:
+    for i in range(nprocesses-1):
+        parargs.append((params[i*samples_per_process:(i+1)*samples_per_process], output, r, arginput, nr, i, len(obs), len(obs_spec)))
+    parargs.append((params[(nprocesses-1)*samples_per_process:], output, r, arginput,  nr,nprocesses-1, len(obs), len(obs_spec)))
 
     # tic=time()
-    with Pool(processes = args.processes) as pool:
+    with Pool(processes = nprocesses) as pool:
         arcis_specs = pool.starmap(simulator, parargs)
     arcis_spec = np.concatenate(arcis_specs)
     # print('Time elapsed: ', time()-tic)
     # logging.info(('Time elapsed: ', time()-tic))
     
-    arcis_spec_2 = np.zeros([len(np_theta), len(obs_spec)])
-    for i in range(len(np_theta)):
+    arcis_spec_2 = np.zeros([len(params1), len(obs_spec)])
+    for i in range(len(params1)):
         arcis_spec_2[i]=np.mean(arcis_spec[2*i:2*i+2], axis=0)
     
     return arcis_spec_2

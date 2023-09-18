@@ -27,6 +27,8 @@ supertic = time()
 def parse_args():
     parser = argparse.ArgumentParser(description=('Train SNPE_C'))
     parser.add_argument('-input', type=str, help='ARCiS input file for the retrieval')
+    parser.add_argument('-input2', type=str, default='aintnothinhere', help='ARCiS input file for a 2nd limb')
+    parser.add_argument('-n_global', type=int, default=5, help='Number of global parameters. Only used in conjunction with input2.')
     parser.add_argument('-output', type=str, default='output', help='Directory to save output')
     parser.add_argument('-device', type=str, default='cpu', help='Device to use for training. Default: CPU.')
     parser.add_argument('-num_rounds', type=int, default=10, help='Number of rounds to train for. Default: 10.')
@@ -92,10 +94,14 @@ print('Command line arguments: '+ str(args))
 
 ##### READ ARCiS INPUT FILE
 os.system('cp '+args.input + ' '+args.output+'/input_'+args.forward+'.dat')
+if args.input2!='aintnothinhere':
+    os.system('cp '+args.input2 + ' '+args.output+'/input2_'+args.forward+'.dat')
 
 args.input = args.output+'/input_'+args.forward+'.dat'
+if args.input2!='aintnothinhere':
+    args.input2 = args.output+'/input2_'+args.forward+'.dat'
 
-parnames, prior_bounds, obs, obs_spec, noise_spec, nr = read_input(args)
+parnames, prior_bounds, obs, obs_spec, noise_spec, nr, which = read_input(args)
 #####################
 
 ##### READ INPUT FILE
@@ -132,7 +138,6 @@ else:
 
 prior = utils.BoxUniform(low=prior_min.to(args.device, non_blocking=True), high=prior_max.to(args.device, non_blocking=True), device=args.device)
 #######################
-
 
 num_rounds = args.num_rounds
 samples_per_round = args.samples_per_round
@@ -247,10 +252,11 @@ while r<num_rounds:
         
         ##### COMPUTE MODELS
         tic_compute=time()
-        if args.twoterms:
-            arcis_spec[r] = compute_2term(np_theta[r])
-        else:
-            arcis_spec[r] = compute(params, args.processes, args.output,args.input, args.ynorm, r, nr, obs, obs_spec)
+        # if args.input2!='aintnothinhere':
+        #     # arcis_spec[r] = compute(params, args.processes, args.output,args.input, args.ynorm, r, nr, obs, obs_spec)
+        #     # arcis_spec[r] = compute(params, args.processes, args.output,args.input, args.ynorm, r, nr, obs, obs_spec)
+        # else:
+        arcis_spec[r] = compute(params, args.processes, args.output, args.input, args.input2, args.n_global, which, args.ynorm, r, nr, obs, obs_spec)
         
           
         ##### CHECK IF ALL MODELS WERE COMPUTED AND COMPUTE REMAINING IF NOT
