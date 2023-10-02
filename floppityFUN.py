@@ -142,6 +142,7 @@ class rm_mean():
         
     def transform(self, arcis_spec):
         normed = np.empty([arcis_spec.shape[0],arcis_spec.shape[1]+1])
+        logging.info('Removing the mean')
         print('Removing the mean')
         for i in trange(len(arcis_spec)):
             xbar=np.mean(arcis_spec[i])
@@ -152,6 +153,7 @@ class rm_mean():
     
     def inverse_transform(self, normed):
         arcis_spec = np.empty([normed.shape[0],normed.shape[1]-1])
+        logging.info('Adding back the mean')
         print('Adding back the mean')
         for i in trange(len(normed)):
             xbar=normed[i][-1]
@@ -160,7 +162,7 @@ class rm_mean():
         return arcis_spec
 
 ### COMPUTE FORWARD MODELS FROM NORMALISED PARAMETERS
-def compute(params, nprocesses, output, arginput, arginput2, n_global, which, ynorm, r, nr, obs, obs_spec):
+def compute(params, nprocesses, output, arginput, arginput2, n_global, which, ynorm, r, nr, obs, obs_spec,args):
     samples_per_process = len(params)//nprocesses
 
     print('Samples per process: ', samples_per_process)
@@ -176,8 +178,8 @@ def compute(params, nprocesses, output, arginput, arginput2, n_global, which, yn
     #     parargs.append((params[(args.processes-1)*samples_per_process:], args.output, r, args.input, freeT, nTpoints, nr,args.processes-1, len(obs), len(obs_spec)))
     # else:
     for i in range(nprocesses-1):
-        parargs.append((params[i*samples_per_process:(i+1)*samples_per_process], output, r, arginput, arginput2, n_global, which, nr, i, len(obs), len(obs_spec)))
-    parargs.append((params[(nprocesses-1)*samples_per_process:], output, r, arginput, arginput2, n_global, which, nr, nprocesses-1, len(obs), len(obs_spec)))
+        parargs.append((params[i*samples_per_process:(i+1)*samples_per_process], output, r, arginput, arginput2, n_global, which, nr, i, len(obs), len(obs_spec),args))
+    parargs.append((params[(nprocesses-1)*samples_per_process:], output, r, arginput, arginput2, n_global, which, nr, nprocesses-1, len(obs), len(obs_spec),args))
 
     # tic=time()
     with Pool(processes = nprocesses) as pool:

@@ -93,7 +93,11 @@ def read_input(args):
             parnames.append(parnames2[i])
             prior_bounds.append(prior_bounds2[i])
             which.append(2)
-
+    
+    if args.fit_frac:
+        parnames.append('frac')
+        prior_bounds.append([0.,1.])
+    
     prior_bounds=np.array(prior_bounds)
 
     ### READ OBSERVATIONS
@@ -133,7 +137,7 @@ def read_input(args):
 #             Ppoint[j,i] = 10**(np.log10(Ppoint[j,i-1]) + np.log10(Pmax/Ppoint[j,i-1]) * (1- x[j]**(1/(nTpoints-i+1))))
 #     return Ppoint
 
-def simulator(parameters, directory, r, input_file, input2_file, n_global, which, nr, n, n_obs, size):
+def simulator(parameters, directory, r, input_file, input2_file, n_global, which, nr, n, n_obs, size, args):
     fname = directory+'/round_'+str(r)+str(n)+'_samples.dat'
     
     if input2_file!='aintnothinhere':
@@ -266,11 +270,14 @@ def simulator(parameters, directory, r, input_file, input2_file, n_global, which
             np.save(tname+'.npy', T2)
             np.save(directory+'/P.npy',P2)
         
-        frac=0.5
+        if args.fit_frac:
+            fracs = parameters[:,-1]
+        else:
+            fracs=0.5*np.ones(parameters.shape[0])
         arcis_spec=np.zeros([parameters.shape[0], size])
         for i in range(parameters.shape[0]):
             if sum(arcis_spec1[i])!=0 and sum(arcis_spec2[i])!=0:
-                arcis_spec[i]=frac*arcis_spec1[i] + (1-frac)*arcis_spec2[i]
+                arcis_spec[i]=fracs[i]*arcis_spec1[i] + (1-fracs[i])*arcis_spec2[i]
     else:
         arcis_spec=arcis_spec1
     

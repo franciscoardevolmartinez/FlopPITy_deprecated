@@ -28,6 +28,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description=('Train SNPE_C'))
     parser.add_argument('-input', type=str, help='ARCiS input file for the retrieval')
     parser.add_argument('-input2', type=str, default='aintnothinhere', help='ARCiS input file for a 2nd limb')
+    parser.add_argument('-fit_frac', action='store_true')
     parser.add_argument('-n_global', type=int, default=5, help='Number of global parameters. Only used in conjunction with input2.')
     parser.add_argument('-output', type=str, default='output', help='Directory to save output')
     parser.add_argument('-device', type=str, default='cpu', help='Device to use for training. Default: CPU.')
@@ -256,7 +257,7 @@ while r<num_rounds:
         #     # arcis_spec[r] = compute(params, args.processes, args.output,args.input, args.ynorm, r, nr, obs, obs_spec)
         #     # arcis_spec[r] = compute(params, args.processes, args.output,args.input, args.ynorm, r, nr, obs, obs_spec)
         # else:
-        arcis_spec[r] = compute(params, args.processes, args.output, args.input, args.input2, args.n_global, which, args.ynorm, r, nr, obs, obs_spec)
+        arcis_spec[r] = compute(params, args.processes, args.output, args.input, args.input2, args.n_global, which, args.ynorm, r, nr, obs, obs_spec,args)
         
           
         ##### CHECK IF ALL MODELS WERE COMPUTED AND COMPUTE REMAINING IF NOT
@@ -276,7 +277,7 @@ while r<num_rounds:
             theta_ac = proposal.sample((remain,))
             np_theta_ac = theta_ac.cpu().detach().numpy().reshape([-1, len(prior_bounds)])
 
-            arcis_spec_ac=compute(np_theta_ac, args.processes, args.output,args.input, args.ynorm, r, nr, obs, obs_spec)
+            arcis_spec_ac=compute(np_theta_ac, args.processes, args.output,args.input, args.ynorm, r, nr, obs, obs_spec,args)
 
             sm_ac = np.sum(arcis_spec_ac, axis=1)
 
