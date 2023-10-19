@@ -4,7 +4,9 @@
 Allows the user to easily train normalizing flows in multiple rounds to perform atmospheric retrievals of exoplanets. Specifically written to work in conjunction with [ARCiS](https://github.com/michielmin/ARCiS). [TauREx](https://taurex3-public.readthedocs.io/en/latest/) and [petitRADTRANS](https://petitradtrans.readthedocs.io/en/latest/) versions coming soon.
 
 ## Requirements
-[ARCiS](https://github.com/michielmin/ARCiS): Contact [Michiel Min](mailto:m.min@sron.nl).
+[ARCiS](https://github.com/michielmin/ARCiS)
+
+Please get in touch if you'd like to use FlopPITy with an atmospheric simulator of your choice.
 
 The following python packages are needed:
 - [`numpy`](https://numpy.org/install/)
