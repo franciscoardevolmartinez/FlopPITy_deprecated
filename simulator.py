@@ -97,6 +97,14 @@ def read_input(args):
     if args.fit_frac:
         parnames.append('frac')
         prior_bounds.append([0.,1.])
+        
+    if args.fit_offset:
+        offsets=args.max_offset.split(',')
+        for i in range(len(offsets)):
+            offsets[i]=float(offsets[i])
+            parnames.append(f'offset_{i}')
+            prior_bounds.append([-offsets[i], offsets[i]])
+        
     
     prior_bounds=np.array(prior_bounds)
 
@@ -124,8 +132,10 @@ def read_input(args):
         l.append(len(phasej))
         obs_spec[sum(l[:j+1]):sum(l[:j+2])] = phasej[:,1]
         noise_spec[sum(l[:j+1]):sum(l[:j+2])] = phasej[:,2]
+    
+    assert len(offsets)<len(obs), 'Are you sure you want more offsets than observations?'
           
-    return parnames, prior_bounds,obs, obs_spec,noise_spec, nr, which
+    return parnames, prior_bounds,obs, obs_spec,noise_spec, nr, which,nwvl
 
 # def x2Ppoints(x, nTpoints):
 #     Pmin=1e2
@@ -137,8 +147,15 @@ def read_input(args):
 #             Ppoint[j,i] = 10**(np.log10(Ppoint[j,i-1]) + np.log10(Pmax/Ppoint[j,i-1]) * (1- x[j]**(1/(nTpoints-i+1))))
 #     return Ppoint
 
-def simulator(parameters, directory, r, input_file, input2_file, n_global, which, nr, n, n_obs, size, args):
+def simulator(fparameters, directory, r, input_file, input2_file, n_global, which, nr, n, n_obs, size, nwvl, args):
     fname = directory+'/round_'+str(r)+str(n)+'_samples.dat'
+    
+    if args.fit_offset:
+        offsets=args.max_offset.split(',')
+        parameters=fparameters[:,:-len(offsets)]
+        offset = fparameters[:,-len(offsets):]
+    else:
+        parameters=fparameters
     
     if input2_file!='aintnothinhere':
         print('Writing parametergridfile for 2nd limb')
@@ -280,5 +297,15 @@ def simulator(parameters, directory, r, input_file, input2_file, n_global, which
                 arcis_spec[i]=fracs[i]*arcis_spec1[i] + (1-fracs[i])*arcis_spec2[i]
     else:
         arcis_spec=arcis_spec1
+        
+    #### THIS IS A VERY QUICK FIX,,, FIX LATER    
+    if args.fit_offset:
+        for i in range(parameters.shape[0]):
+            # print(int(nwvl[0]))
+            # print(int(nwvl[1]))
+            arcis_spec[i][0:int(nwvl[0])]+=offset[i][0]
+            if len(offset[i])>1:
+                for j in range(1,len(offset[i])):
+                    arcis_spec[i][int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))] += offset[i][j]
     
     return arcis_spec
