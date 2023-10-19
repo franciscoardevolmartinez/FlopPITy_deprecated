@@ -62,6 +62,8 @@ def parse_args():
     parser.add_argument('-prior_dir', type=str)
     parser.add_argument('-dont_reject', action='store_false')
     parser.add_argument('-npew', type=int, default=5000)
+    parser.add_argument('-fit_offset', action='store_true')
+    parser.add_argument('-max_offset', type=str)
     return parser.parse_args()
 
 args = parse_args()
@@ -102,7 +104,9 @@ args.input = args.output+'/input_'+args.forward+'.dat'
 if args.input2!='aintnothinhere':
     args.input2 = args.output+'/input2_'+args.forward+'.dat'
 
-parnames, prior_bounds, obs, obs_spec, noise_spec, nr, which = read_input(args)
+
+
+parnames, prior_bounds, obs, obs_spec, noise_spec, nr, which, nwvl = read_input(args)
 #####################
 
 ##### READ INPUT FILE
@@ -257,7 +261,7 @@ while r<num_rounds:
         #     # arcis_spec[r] = compute(params, args.processes, args.output,args.input, args.ynorm, r, nr, obs, obs_spec)
         #     # arcis_spec[r] = compute(params, args.processes, args.output,args.input, args.ynorm, r, nr, obs, obs_spec)
         # else:
-        arcis_spec[r] = compute(params, args.processes, args.output, args.input, args.input2, args.n_global, which, args.ynorm, r, nr, obs, obs_spec,args)
+        arcis_spec[r] = compute(params, args.processes, args.output, args.input, args.input2, args.n_global, which, args.ynorm, r, nr, obs, obs_spec,nwvl,args)
         
           
         ##### CHECK IF ALL MODELS WERE COMPUTED AND COMPUTE REMAINING IF NOT
@@ -277,7 +281,7 @@ while r<num_rounds:
             theta_ac = proposal.sample((remain,))
             np_theta_ac = theta_ac.cpu().detach().numpy().reshape([-1, len(prior_bounds)])
 
-            arcis_spec_ac=compute(np_theta_ac, args.processes, args.output,args.input, args.ynorm, r, nr, obs, obs_spec,args)
+            arcis_spec_ac=compute(np_theta_ac, args.processes, args.output,args.input, args.input2, args.n_global, which, args.ynorm, r, nr, obs, obs_spec,nwvl,args)
 
             sm_ac = np.sum(arcis_spec_ac, axis=1)
 
@@ -291,15 +295,15 @@ while r<num_rounds:
     theta_aug, x, xscaler, pca = preprocess(np_theta[r], arcis_spec[r], r, samples_per_round, obs_spec, noise_spec, args.naug, args.do_pca, args.n_pca, args.xnorm, args.output, args.device)
     
     
-    #### COMPUTE EVIDENCE
-    # if r>0:
-    #     logging.info('Computing evidence...')
-    #     logZ = evidence(posteriors[-1], prior, arcis_spec[r], np_theta[r], obs_spec, noise_spec, args.do_pca, args.xnorm, xscaler, pca)
-    #     print('\n')
-    #     print('ln (Z) = '+ str(round(logZ[0], 2))+' ('+str(round(logZ[1],2))+', '+str(round(logZ[2],2))+')')
-    #     logging.info('ln (Z) = '+ str(round(logZ[0], 2))+' ('+str(round(logZ[1],2))+', '+str(round(logZ[2],2))+')')
-    #     print('\n')
-    #     logZs.append(logZ)
+    ### COMPUTE EVIDENCE
+    if r>0:
+        logging.info('Computing evidence...')
+        logZ = evidence(posteriors[-1], prior, arcis_spec[r], np_theta[r], obs_spec, noise_spec, args.do_pca, args.xnorm, xscaler, pca)
+        print('\n')
+        print('ln (Z) = '+ str(round(logZ[0], 2))+' ('+str(round(logZ[1],2))+', '+str(round(logZ[2],2))+')')
+        logging.info('ln (Z) = '+ str(round(logZ[0], 2))+' ('+str(round(logZ[1],2))+', '+str(round(logZ[2],2))+')')
+        print('\n')
+        logZs.append(logZ)
     
     '''
     ###### REJECT ROUND IF NECESSARY
@@ -321,11 +325,11 @@ while r<num_rounds:
     else:
         repeat=0
     '''
-    # if r>0:
-    #     with open(args.output+'/evidence.p', 'wb') as file_evidence:
-    #         print('Saving evidence...')
-    #         logging.info('Saving evidence...')
-    #         pickle.dump(logZs, file_evidence)
+    if r>0:
+        with open(args.output+'/evidence.p', 'wb') as file_evidence:
+            print('Saving evidence...')
+            logging.info('Saving evidence...')
+            pickle.dump(logZs, file_evidence)
     '''
         print('Preprocessing data...')
         logging.info('Preprocessing data...')

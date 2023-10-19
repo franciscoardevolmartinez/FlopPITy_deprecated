@@ -162,7 +162,7 @@ class rm_mean():
         return arcis_spec
 
 ### COMPUTE FORWARD MODELS FROM NORMALISED PARAMETERS
-def compute(params, nprocesses, output, arginput, arginput2, n_global, which, ynorm, r, nr, obs, obs_spec,args):
+def compute(params, nprocesses, output, arginput, arginput2, n_global, which, ynorm, r, nr, obs, obs_spec,nwvl,args):
     samples_per_process = len(params)//nprocesses
 
     print('Samples per process: ', samples_per_process)
@@ -178,8 +178,8 @@ def compute(params, nprocesses, output, arginput, arginput2, n_global, which, yn
     #     parargs.append((params[(args.processes-1)*samples_per_process:], args.output, r, args.input, freeT, nTpoints, nr,args.processes-1, len(obs), len(obs_spec)))
     # else:
     for i in range(nprocesses-1):
-        parargs.append((params[i*samples_per_process:(i+1)*samples_per_process], output, r, arginput, arginput2, n_global, which, nr, i, len(obs), len(obs_spec),args))
-    parargs.append((params[(nprocesses-1)*samples_per_process:], output, r, arginput, arginput2, n_global, which, nr, nprocesses-1, len(obs), len(obs_spec),args))
+        parargs.append((params[i*samples_per_process:(i+1)*samples_per_process], output, r, arginput, arginput2, n_global, which, nr, i, len(obs), len(obs_spec),nwvl, args))
+    parargs.append((params[(nprocesses-1)*samples_per_process:], output, r, arginput, arginput2, n_global, which, nr, nprocesses-1, len(obs), len(obs_spec),nwvl, args))
 
     # tic=time()
     with Pool(processes = nprocesses) as pool:
