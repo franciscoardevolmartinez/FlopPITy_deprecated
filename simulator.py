@@ -133,7 +133,8 @@ def read_input(args):
         obs_spec[sum(l[:j+1]):sum(l[:j+2])] = phasej[:,1]
         noise_spec[sum(l[:j+1]):sum(l[:j+2])] = phasej[:,2]
     
-    assert len(offsets)<len(obs), 'Are you sure you want more offsets than observations?'
+    if args.fit_offset:
+        assert len(offsets)<len(obs), 'Are you sure you want more offsets than observations?'
           
     return parnames, prior_bounds,obs, obs_spec,noise_spec, nr, which,nwvl
 

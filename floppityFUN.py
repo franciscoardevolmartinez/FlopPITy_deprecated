@@ -34,7 +34,7 @@ def evidence(posterior, prior, samples, Y, obs, err, do_pca, xnorm, xscaler, pca
             default_x = pca.transform(obs.reshape(1,-1))
     else:
         if xnorm:
-            default_x = xscaler.transform(obs.reshape(1,-1))
+            default_x = xscaler.transform(rm_mean().transform(obs.reshape(1,-1)))
         else:
             default_x = obs.reshape(1,-1)
     P = posterior.log_prob(torch.tensor(Y), x=default_x)
