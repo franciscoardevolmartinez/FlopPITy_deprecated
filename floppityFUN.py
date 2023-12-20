@@ -248,8 +248,8 @@ def preprocess(np_theta, arcis_spec, r, samples_per_round, obs_spec,noise_spec,n
         if do_pca:
             print('Fitting PCA...')
             logging.info('Fitting PCA...')
-            # pca = PCA(n_components=n_pca)
-            pca = TruncatedSVD(n_components=n_pca)
+            pca = PCA(n_components=n_pca)
+            # pca = TruncatedSVD(n_components=n_pca)
             pca.fit(arcis_spec)
             with open(output+'/pca.p', 'wb') as file_pca:
                 pickle.dump(pca, file_pca)

@@ -16,7 +16,7 @@ import os
 logging.getLogger('matplotlib').setLevel(logging.WARNING)
 import matplotlib.pyplot as plt
 from corner import corner
-from sbi.inference import MCMCPosterior, RejectionPosterior
+from sbi.inference import MCMCPosterior, RejectionPosterior, ImportanceSamplingPosterior
 from sbi.inference import DirectPosterior, likelihood_estimator_based_potential
 from floppityFUN import *
 from simulator import *
@@ -398,6 +398,7 @@ while r<num_rounds:
     # posterior = MCMCPosterior(potential_fn, proposal=proposal, theta_transform=theta_transform).set_default_x(default_x)
     # posterior = RejectionPosterior(potential_fn, proposal=proposal, theta_transform=theta_transform)
     # posterior = DirectPosterior(posterior_estimator, prior=prior).set_default_x(default_x)
+    # posterior = ImportanceSamplingPosterior(potential_fn, proposal).set_default_x(default_x)
     #newline
 
     print('\n Time elapsed: '+str(time()-tic))
