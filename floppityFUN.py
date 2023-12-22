@@ -74,9 +74,9 @@ def evidence_w_all(posterior, prior, samples, Y, obs, err, do_pca, xnorm):
 ### Embedding network
 class SummaryNet(nn.Module):
 
-    def __init__(self, size):
+    def __init__(self, size_in, size):
         super().__init__()
-        self.fc1 = nn.Linear(size, size)
+        self.fc1 = nn.Linear(size_in, size)
         self.fc2 = nn.Linear(size, size)
         self.fc3= nn.Linear(size, size)
 
