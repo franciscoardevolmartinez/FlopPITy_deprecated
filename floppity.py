@@ -123,7 +123,7 @@ parnames, prior_bounds, obs, obs_spec, noise_spec, nr, which, nwvl = read_input(
 ##### EMBEDDING NETWORK (useless atm)
 if args.embedding:
     print('Using an embedding network.')
-    summary = SummaryNet(obs_spec.shape[0], args.embed_size)
+    summary = SummaryNet(args.embed_size)
 else:
     summary = nn.Identity()
 #######################
