@@ -74,17 +74,16 @@ def evidence_w_all(posterior, prior, samples, Y, obs, err, do_pca, xnorm):
 ### Embedding network
 class SummaryNet(nn.Module):
 
-    def __init__(self, size_in, size_out):
+    def __init__(self, size):
         super().__init__()
-        inter = int((size_in+size_out)/2)
-        self.fc1 = nn.Linear(size_in, size_out)
-        # self.fc2 = nn.Linear(inter, inter)
-        # self.fc3= nn.Linear(inter, size_out)
+        self.fc1 = nn.Linear(size, size)
+        self.fc2 = nn.Linear(size, size)
+        self.fc3= nn.Linear(size, size)
 
     def forward(self, x):
-        # x = F.relu(self.fc1(x))
-        # x = F.relu(self.fc2(x))
-        x = self.fc1(x)
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x))
+        x = self.fc3(x)
         return x
     
 ### Display 1D marginals in console
