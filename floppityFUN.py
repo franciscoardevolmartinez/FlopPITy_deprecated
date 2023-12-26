@@ -23,20 +23,11 @@ def likelihood(obs, err, x):
         L += -np.log(np.sqrt(2*np.pi)*err[i]) + (-(obs[i]-x[i])**2/(2*err[i]**2))
     return L
 
-def evidence(posterior, prior, samples, Y, obs, err, do_pca, xnorm, xscaler, pca):
+def evidence(posterior, prior, samples, Y, obs, err, do_pca, xnorm, rem_mean, xscaler, pca):
     L = np.empty(len(samples))
     for j in range(len(samples)):
         L[j] = likelihood(obs, err, samples[j])
-    if do_pca:
-        if xnorm:
-            default_x = xscaler.transform(pca.transform(obs.reshape(1,-1)))
-        else:
-            default_x = pca.transform(obs.reshape(1,-1))
-    else:
-        if xnorm:
-            default_x = xscaler.transform(rm_mean().transform(obs.reshape(1,-1)))
-        else:
-            default_x = obs.reshape(1,-1)
+    default_x = xscaler.transform(pca.transform(rem_mean.transform(obs.reshape(1,-1))))
     P = posterior.log_prob(torch.tensor(Y), x=default_x)
     pi = prior.log_prob(torch.tensor(Y))
     logZ =np.empty(3)
@@ -134,6 +125,20 @@ class Normalizer():
         for i in range(Y.shape[1]):
             Yi[:,i] = (Y[:,i]+1)*(self.bounds[i][1] - self.bounds[i][0])/2 + self.bounds[i][0]
         return Yi
+    
+class do_nothing():
+    def __init__(self):
+        return
+        
+    def transform(self, data):
+        return data
+    
+    def fit(self, data):
+        # This does nothing but replicates other preprocessing classes
+        return 
+    
+    def inverse_transform(self, data):
+        return data
     
 class rm_mean():
     def __init__(self):
@@ -237,53 +242,36 @@ def compute_2term(params1,nprocesses, output, arginput, ynorm, r, nr, obs, obs_s
     return arcis_spec_2
     
 ### Preprocessing for spectra and parameters
-def preprocess(np_theta, arcis_spec, r, samples_per_round, obs_spec,noise_spec,naug,do_pca, n_pca, xnorm, output, device):
+def preprocess(np_theta, arcis_spec, r, samples_per_round, obs_spec,noise_spec,naug,do_pca, n_pca, xnorm, rem_mean, output, device):
     theta_aug = torch.tensor(np.repeat(np_theta, naug, axis=0), dtype=torch.float32, device=device)
     arcis_spec_aug = np.repeat(arcis_spec,naug,axis=0) + noise_spec*np.random.randn(samples_per_round*naug, obs_spec.shape[0]) #surely this can be changed to arcis_spec.shape ?? Apparently not
-    xscaler=None
-    pca=None
-    
-    if r==0:
-        if do_pca:
-            print('Fitting PCA...')
-            logging.info('Fitting PCA...')
-            pca = PCA(n_components=n_pca)
-            # pca = TruncatedSVD(n_components=n_pca)
-            pca.fit(arcis_spec)
-            with open(output+'/pca.p', 'wb') as file_pca:
-                pickle.dump(pca, file_pca)
-            if xnorm:
-                xscaler = StandardScaler().fit(pca.transform(arcis_spec))
-                with open(output+'/xscaler.p', 'wb') as file_xscaler:
-                    pickle.dump(xscaler, file_xscaler)  
-        elif xnorm:
-            print('No PCA, straight to xnorm')
-            logging.info('No PCA, straight to xnorm')
-            # print('Removing mean')
-            xscaler = StandardScaler().fit(rm_mean().transform(arcis_spec))
-            with open(output+'/xscaler.p', 'wb') as file_xscaler:
-                pickle.dump(xscaler, file_xscaler)
 
     if do_pca:
-        pca=pickle.load(open(output+'/pca.p', 'rb'))
-        print('Doing PCA...')
-        logging.info('Doing PCA...')
-        x_i = pca.transform(arcis_spec_aug)
-        if xnorm:
-            xscaler=pickle.load(open(output+'/xscaler.p', 'rb'))
-            x_f = torch.tensor(xscaler.transform(x_i), dtype=torch.float32, device=device)
-        else:
-            x_f = torch.tensor(x_i, dtype=torch.float32, device=device)
-        # np.save(output+'/preprocessed.npy', x_f)
-    elif xnorm:
-        xscaler=pickle.load(open(output+'/xscaler.p', 'rb'))
-        # xscaler=rm_mean()
-        print('Normalizing features')
-        logging.info('Normalizing features')
-        x_f = torch.tensor(xscaler.transform(rm_mean().transform(arcis_spec_aug)), dtype=torch.float32, device=device)
+        pca = PCA(n_components=n_pca)
     else:
-        x_f = torch.tensor(arcis_spec_aug, dtype=torch.float32, device=device)
-
-    # x = torch.tensor(x_f, dtype=torch.float32, device=device)
+        pca = do_nothing()
+    
+    if xnorm:
+        xscaler = StandardScaler()
+    else:
+        xscaler = do_nothing()
+        
+    if rem_mean:
+        rem_mean=rm_mean()
+    else:
+        rem_mean=do_nothing()
+    
+    if r==0:
+        
+        pca.fit(rem_mean.transform(arcis_spec))
+        with open(output+'/pca.p', 'wb') as file_pca:
+            pickle.dump(pca, file_pca)
+        xscaler.fit(pca.transform(rem_mean.transform(arcis_spec)))
+        with open(output+'/xscaler.p', 'wb') as file_xscaler:
+            pickle.dump(xscaler, file_xscaler)
+            
+    pca=pickle.load(open(output+'/pca.p', 'rb'))
+    xscaler=pickle.load(open(output+'/xscaler.p', 'rb'))
+    x_f = torch.tensor(xscaler.transform(pca.transform(rem_mean.transform(arcis_spec_aug))), dtype=torch.float32, device=device)
 
     return theta_aug, x_f, xscaler, pca

@@ -39,6 +39,7 @@ def parse_args():
     parser.add_argument('-transforms', type=int, default=5)
     parser.add_argument('-custom_nsf', action='store_true')
     parser.add_argument('-do_pca', action='store_true')
+    parser.add_argument('-rem_mean', action='store_true')
     parser.add_argument('-naug', type=int, default=1, help='Data augmentation factor')
     parser.add_argument('-n_pca', type=int, default=50)
     parser.add_argument('-embed_size', type=int, default=64)
@@ -118,6 +119,12 @@ parnames, prior_bounds, obs, obs_spec, noise_spec, nr, which, nwvl = read_input(
 
 # parnames, prior_bounds, obs, obs_spec, noise_spec, nr = read_arcis_input(args.input, args.twoterms)
 #####################
+
+#######  REMOVE MEAN? Useful for transmission spectra
+if args.rem_mean:
+    rem_mean=rm_mean()
+else:
+    rem_mean=do_nothing()
 
 
 ##### EMBEDDING NETWORK (useless atm)
@@ -292,13 +299,13 @@ while r<num_rounds:
         logging.info('Time elapsed: '+ str(time()-tic_compute))
         print('Time elapsed: ', time()-tic_compute)
 
-    theta_aug, x, xscaler, pca = preprocess(np_theta[r], arcis_spec[r], r, samples_per_round, obs_spec, noise_spec, args.naug, args.do_pca, args.n_pca, args.xnorm, args.output, args.device)
+    theta_aug, x, xscaler, pca = preprocess(np_theta[r], arcis_spec[r], r, samples_per_round, obs_spec, noise_spec, args.naug, args.do_pca, args.n_pca, args.xnorm, args.rem_mean, args.output, args.device)
     
     
     ### COMPUTE EVIDENCE
     if r>0:
         logging.info('Computing evidence...')
-        logZ = evidence(posteriors[-1], prior, arcis_spec[r], np_theta[r], obs_spec, noise_spec, args.do_pca, args.xnorm, xscaler, pca)
+        logZ = evidence(posteriors[-1], prior, arcis_spec[r], np_theta[r], obs_spec, noise_spec, args.do_pca, args.xnorm, rem_mean, xscaler, pca)
         print('\n')
         print('ln (Z) = '+ str(round(logZ[0], 2))+' ('+str(round(logZ[1],2))+', '+str(round(logZ[2],2))+')')
         logging.info('ln (Z) = '+ str(round(logZ[0], 2))+' ('+str(round(logZ[1],2))+', '+str(round(logZ[2],2))+')')
@@ -381,19 +388,9 @@ while r<num_rounds:
 
 
     ##### GENERATE POSTERIOR AND UPDATE PROPOSAL
-    if args.do_pca:
-        print('Transforming observation...')
-        logging.info('Transforming observation...')
-        default_x_pca = pca.transform(obs_spec.reshape(1,-1))
-        if args.xnorm:
-            default_x = xscaler.transform(default_x_pca)
-        else:
-            default_x = default_x_pca
-    elif args.xnorm:
-        default_x = xscaler.transform(rm_mean().transform(obs_spec.reshape(1,-1)))
-    else:
-        default_x = obs_spec.reshape(1,-1)
-        
+    
+    default_x = xscaler.transform(pca.transform(rem_mean.transform(obs_spec.reshape(1,-1))))
+    
     # potential_fn, theta_transform = likelihood_estimator_based_potential(posterior_estimator, proposal, default_x)
     # posterior = MCMCPosterior(potential_fn, proposal=proposal, theta_transform=theta_transform).set_default_x(default_x)
     # posterior = RejectionPosterior(potential_fn, proposal=proposal, theta_transform=theta_transform)
