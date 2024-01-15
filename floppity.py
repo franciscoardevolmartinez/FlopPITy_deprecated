@@ -17,7 +17,7 @@ logging.getLogger('matplotlib').setLevel(logging.WARNING)
 import matplotlib.pyplot as plt
 from corner import corner
 from sbi.inference import MCMCPosterior, RejectionPosterior, ImportanceSamplingPosterior
-from sbi.inference import DirectPosterior, likelihood_estimator_based_potential
+from sbi.inference import DirectPosterior, likelihood_estimator_based_potential, posterior_estimator_based_potential
 from floppityFUN import *
 from simulator import *
 
@@ -30,6 +30,7 @@ def parse_args():
     parser.add_argument('-input2', type=str, default='aintnothinhere', help='ARCiS input file for a 2nd limb')
     parser.add_argument('-fit_frac', action='store_true')
     parser.add_argument('-n_global', type=int, default=5, help='Number of global parameters. Only used in conjunction with input2.')
+    parser.add_argument('-binary', type='store_true', help='If true, the two components (input and input2) are added together instead of averaged.')
     parser.add_argument('-output', type=str, default='output', help='Directory to save output')
     parser.add_argument('-device', type=str, default='cpu', help='Device to use for training. Default: CPU.')
     parser.add_argument('-num_rounds', type=int, default=10, help='Number of rounds to train for. Default: 10.')
@@ -391,11 +392,11 @@ while r<num_rounds:
     
     default_x = xscaler.transform(pca.transform(rem_mean.transform(obs_spec.reshape(1,-1))))
     
-    # potential_fn, theta_transform = likelihood_estimator_based_potential(posterior_estimator, proposal, default_x)
+    # potential_fn, theta_transform = posterior_estimator_based_potential(posterior_estimator, proposal, default_x)
     # posterior = MCMCPosterior(potential_fn, proposal=proposal, theta_transform=theta_transform).set_default_x(default_x)
     # posterior = RejectionPosterior(potential_fn, proposal=proposal, theta_transform=theta_transform)
     # posterior = DirectPosterior(posterior_estimator, prior=prior).set_default_x(default_x)
-    # posterior = ImportanceSamplingPosterior(potential_fn, proposal).set_default_x(default_x)
+    # posterior = ImportanceSamplingPosterior(potential_fn, proposal, theta_transform=theta_transform, oversampling_factor=1)#.set_default_x(default_x)
     #newline
 
     print('\n Time elapsed: '+str(time()-tic))

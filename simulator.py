@@ -21,6 +21,9 @@ from multiprocessing import Process, Pool
 ####     a list with all observation file names, the observation, the noise of the observation and the number of atmospheric layers.
 ####   - One called simulator that returns simulated spectra
 
+def delta(o,m,s):
+    return sum((o-m)/s**2)/sum(1/s**2)
+
 
 def read_input(args):
     
@@ -136,7 +139,7 @@ def read_input(args):
     if args.fit_offset:
         assert len(offsets)<len(obs), 'Are you sure you want more offsets than observations?'
           
-    return parnames, prior_bounds,obs, obs_spec,noise_spec, nr, which,nwvl
+    return parnames, prior_bounds,obs, obs_spec, noise_spec, nr, which,nwvl
 
 # def x2Ppoints(x, nTpoints):
 #     Pmin=1e2
@@ -214,16 +217,21 @@ def simulator(fparameters, directory, r, input_file, input2_file, n_global, whic
             P = PT[:,1]
             l=[0]
             for j in range(n_obs):
+                # obsi = np.loadtxt(obs[i])
                 if j+1<10:
                     obsn = '/obs00'+str(j+1)
                 elif j+1<100:
                     obsn = '/obs0'+str(j+1)
                 phasej = np.loadtxt(model_dir+obsn)[:,1]
                 l.append(len(phasej))
+                # if args.fit_offset:
+                #     off = delta(obsi[:,1], phasej, obsi[:,2])
+                # else:
+                #     off = 0
                 if np.any(phasej<0):
                     arcis_spec1[i][sum(l[:j+1]):sum(l[:j+2])] = np.zeros_like(phasej)
                 else:
-                    arcis_spec1[i][sum(l[:j+1]):sum(l[:j+2])] = phasej
+                    arcis_spec1[i][sum(l[:j+1]):sum(l[:j+2])] = phasej #+off  
         except:
             print('Couldn\'t store model ', model_dir)
             logging.info('Couldn\'t store model ', model_dir)
@@ -295,6 +303,9 @@ def simulator(fparameters, directory, r, input_file, input2_file, n_global, whic
         arcis_spec=np.zeros([parameters.shape[0], size])
         for i in range(parameters.shape[0]):
             if sum(arcis_spec1[i])!=0 and sum(arcis_spec2[i])!=0:
+                if args.binary:
+                    arcis_spec[i]=arcis_spec1[i] + arcis_spec2[i]
+                else:
                 arcis_spec[i]=fracs[i]*arcis_spec1[i] + (1-fracs[i])*arcis_spec2[i]
     else:
         arcis_spec=arcis_spec1
