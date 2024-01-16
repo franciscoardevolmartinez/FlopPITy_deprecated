@@ -75,19 +75,19 @@ def read_input(args):
 
 
         freeT=False
-
+        
         parnames2=[]
         prior_bounds2=[]
         i=0
-        commons=0
         while i<len(clean_in2):
             if 'fitpar:keyword' in clean_in2[i]:
                 parnames2.append(clean_in2[i][16:-1])
                 if clean_in2[i+3]=='fitpar:log=.true.':
                     prior_bounds2.append([np.log10(float(clean_in2[i+1][11:].replace('d','e'))), np.log10(float(clean_in2[i+2][11:].replace('d','e')))])
-                elif clean_in[i+3]=='fitpar:log=.false.':
+                elif clean_in2[i+3]=='fitpar:log=.false.':
                     prior_bounds2.append([float(clean_in2[i+1][11:].replace('d','e')), float(clean_in2[i+2][11:].replace('d','e'))])
                 i+=4
+                
             # if 'fitpar:keyword'
             else:
                 i+=1
@@ -122,7 +122,7 @@ def read_input(args):
         i+=1
 
     ### 1. Load observation/s
-    print('Loading observations... ')
+    print('Loading observations...')
     logging.info('Loading observations...')
     nwvl = np.zeros(len(obs))
     for i in range(len(obs)):
@@ -306,7 +306,7 @@ def simulator(fparameters, directory, r, input_file, input2_file, n_global, whic
                 if args.binary:
                     arcis_spec[i]=arcis_spec1[i] + arcis_spec2[i]
                 else:
-                arcis_spec[i]=fracs[i]*arcis_spec1[i] + (1-fracs[i])*arcis_spec2[i]
+                    arcis_spec[i]=fracs[i]*arcis_spec1[i] + (1-fracs[i])*arcis_spec2[i]
     else:
         arcis_spec=arcis_spec1
         
