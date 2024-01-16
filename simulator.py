@@ -91,6 +91,8 @@ def read_input(args):
             # if 'fitpar:keyword'
             else:
                 i+=1
+                
+        assert args.n_global<=len(parnames2), 'Tsk tsk tsk... There\'s more global parameters than parameters *smh*'
         
         for i in range(args.n_global, len(parnames2)):
             parnames.append(parnames2[i])
@@ -274,7 +276,7 @@ def simulator(fparameters, directory, r, input_file, input2_file, n_global, whic
             try:
                 PT2 = np.loadtxt(model_dir+'/mixingratios.dat')
                 T2[i] = PT2[:,0]
-                P2 = PT[:,1]
+                P2 = PT2[:,1]
                 l=[0]
                 for j in range(n_obs):
                     if j+1<10:
