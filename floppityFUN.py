@@ -67,14 +67,28 @@ class SummaryNet(nn.Module):
 
     def __init__(self, size_in, size):
         super().__init__()
-        self.fc1 = nn.Linear(size_in, size)
-        self.fc2 = nn.Linear(size, size)
-        self.fc3= nn.Linear(size, size)
+        self.fc1 = nn.Linear(size_in, 512)
+        self.fc2 = nn.Linear(512, 512)
+        self.fc3= nn.Linear(512, 256)
+        self.fc4= nn.Linear(256, 256)
+        self.fc5= nn.Linear(256, 256)
+        self.fc6= nn.Linear(256, 128)
+        self.fc7= nn.Linear(128, 128)
+        self.fc8= nn.Linear(128, 128)
+        self.fc9= nn.Linear(128, 128)
+        self.fc10= nn.Linear(128, 128)
 
     def forward(self, x):
-        x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
-        x = self.fc3(x)
+        x = F.elu(self.fc1(x))
+        x = F.elu(self.fc2(x))
+        x = F.elu(self.fc3(x))
+        x = F.elu(self.fc4(x))
+        x = F.elu(self.fc5(x))
+        x = F.elu(self.fc6(x))
+        x = F.elu(self.fc7(x))
+        x = F.elu(self.fc8(x))
+        x = F.elu(self.fc9(x))
+        x = F.elu(self.fc10(x))
         return x
     
 ### Display 1D marginals in console
