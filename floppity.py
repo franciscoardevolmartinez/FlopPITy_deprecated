@@ -16,6 +16,7 @@ import os
 logging.getLogger('matplotlib').setLevel(logging.WARNING)
 import matplotlib.pyplot as plt
 from corner import corner
+from sbi.neural_nets.embedding_nets import FCEmbedding, CNNEmbedding, PermutationInvariantEmbedding
 from sbi.inference import MCMCPosterior, RejectionPosterior, ImportanceSamplingPosterior
 from sbi.inference import DirectPosterior, likelihood_estimator_based_potential, posterior_estimator_based_potential
 from floppityFUN import *
@@ -128,10 +129,11 @@ else:
     rem_mean=do_nothing()
 
 
-##### EMBEDDING NETWORK (useless atm)
+##### EMBEDDING NETWORK
 if args.embedding:
     print('Using an embedding network.')
-    summary = SummaryNet(obs_spec.shape[0], args.embed_size)
+    # summary = SummaryNet(obs_spec.shape[0], args.embed_size)
+    summary = CNNembedding(input_shape=(obs_spec.shape[0],), num_conv_layers=3, num_linear_layers=3, num_linear_units=512, output_dim=args.embed_size)
 else:
     summary = nn.Identity()
 #######################
