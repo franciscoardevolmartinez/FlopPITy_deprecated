@@ -133,7 +133,7 @@ else:
 if args.embedding:
     print('Using an embedding network.')
     # summary = SummaryNet(obs_spec.shape[0], args.embed_size)
-    summary = CNNEmbedding(input_shape=(obs_spec.shape[0],), num_conv_layers=3, num_linear_layers=3, num_linear_units=512, output_dim=args.embed_size)
+    summary = CNNEmbedding(input_shape=(obs_spec.shape[0],), out_channels_per_layer=[6,12,24], num_conv_layers=3, num_linear_layers=3, num_linear_units=512, output_dim=args.embed_size)
 else:
     summary = nn.Identity()
 #######################
