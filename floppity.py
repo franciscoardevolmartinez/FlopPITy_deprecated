@@ -42,6 +42,7 @@ def parse_args():
     parser.add_argument('-custom_nsf', action='store_true')
     parser.add_argument('-do_pca', action='store_true')
     parser.add_argument('-rem_mean', action='store_true')
+    parser.add_argument('-res_scale', action='store_true')
     parser.add_argument('-naug', type=int, default=1, help='Data augmentation factor')
     parser.add_argument('-n_pca', type=int, default=50)
     parser.add_argument('-embed_size', type=int, default=64)
@@ -303,7 +304,8 @@ while r<num_rounds:
         logging.info('Time elapsed: '+ str(time()-tic_compute))
         print('Time elapsed: ', time()-tic_compute)
 
-    theta_aug, x, xscaler, pca = preprocess(np_theta[r], arcis_spec[r], r, samples_per_round, obs_spec, noise_spec, args.naug, args.do_pca, args.n_pca, args.xnorm, args.rem_mean, args.output, args.device)
+    theta_aug, x, xscaler, pca = preprocess(np_theta[r], arcis_spec[r], r, samples_per_round, obs_spec, noise_spec, args.naug, args.do_pca, args.n_pca, args.xnorm, 
+                                            args.rem_mean, args.output, args.device, args)
     
     
     ### COMPUTE EVIDENCE
@@ -393,8 +395,10 @@ while r<num_rounds:
 
     ##### GENERATE POSTERIOR AND UPDATE PROPOSAL
     
-    # default_x = xscaler.transform(pca.transform(rem_mean.transform(obs_spec.reshape(1,-1))))
-    default_x = xscaler.transform(pca.transform(sigma_res_scale.transform(obs_spec.reshape(1,-1), obs_spec.reshape(1,-1), noise_spec.reshape(1,-1))))
+    if args.res_scale:
+        default_x = xscaler.transform(pca.transform(sigma_res_scale.transform(obs_spec.reshape(1,-1), obs_spec.reshape(1,-1), noise_spec.reshape(1,-1))))
+    else:
+        default_x = xscaler.transform(pca.transform(rem_mean.transform(obs_spec.reshape(1,-1))))
     
     # potential_fn, theta_transform = posterior_estimator_based_potential(posterior_estimator, proposal, default_x)
     # posterior = MCMCPosterior(potential_fn, proposal=proposal, theta_transform=theta_transform).set_default_x(default_x)

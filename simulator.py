@@ -184,14 +184,14 @@ def simulator(fparameters, directory, r, input_file, input2_file, n_global, whic
         parametergrid = parameters
         np.savetxt(fname, parametergrid)
         
-    print('Running ARCiS')
-    print('Computing '+str(len(parameters))+' models for process '+str(n))
-    logging.info('Running ARCiS')
-    logging.info('Computing '+str(len(parameters))+' models for process '+str(n))
+    # print('Running ARCiS')
+    # print('Computing '+str(len(parameters))+' models for process '+str(n))
+    # logging.info('Running ARCiS')
+    # logging.info('Computing '+str(len(parameters))+' models for process '+str(n))
     os.system('cd ; '+ARCiS + ' '+input_file + ' -o '+directory+'/round_'+str(r)+str(n)+'_out -s parametergridfile='+fname)
     if input2_file!='aintnothinhere':
-        print('Computing 2nd limb')
-        logging.info('Computing 2nd limb')
+        # print('Computing 2nd limb')
+        # logging.info('Computing 2nd limb')
         os.system('cd ; '+ARCiS + ' '+input2_file + ' -o '+directory+'/round_'+str(r)+str(n)+'_limb2_out -s parametergridfile='+fname2)
 
     dirx = directory + '/round_'+str(r)+str(n)+'_out/'
@@ -199,7 +199,7 @@ def simulator(fparameters, directory, r, input_file, input2_file, n_global, whic
     arcis_spec1 = np.zeros([parameters.shape[0], size])
         
     print('Reading ARCiS output')
-    logging.info('Reading ARCiS output')
+    # logging.info('Reading ARCiS output')
     
     T = np.zeros([parameters.shape[0], nr])
     P = np.zeros(nr)
@@ -258,8 +258,8 @@ def simulator(fparameters, directory, r, input_file, input2_file, n_global, whic
 
         arcis_spec2 = np.zeros([parameters.shape[0], size])
 
-        print('Reading ARCiS output')
-        logging.info('Reading ARCiS output')
+        # print('Reading ARCiS output')
+        # logging.info('Reading ARCiS output')
 
         T2 = np.zeros([parameters.shape[0], nr])
         P2 = np.zeros(nr)

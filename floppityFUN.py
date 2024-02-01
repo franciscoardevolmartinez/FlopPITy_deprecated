@@ -220,6 +220,10 @@ def compute(params, nprocesses, output, arginput, arginput2, n_global, which, yn
     parargs.append((params[(nprocesses-1)*samples_per_process:], output, r, arginput, arginput2, n_global, which, nr, nprocesses-1, len(obs), len(obs_spec),nwvl, args))
 
     # tic=time()
+    print('Running ARCiS')
+    print(f'Computing {str(samples_per_process)} models per process')
+    logging.info('Running ARCiS')
+    logging.info('Computing '+str(samples_per_process)+' models per process ')
     with Pool(processes = nprocesses) as pool:
         # Simulator is function that returns spectra (needs to be same units as observation)
         arcis_specs = pool.starmap(simulator, parargs)
@@ -276,7 +280,7 @@ def compute_2term(params1,nprocesses, output, arginput, ynorm, r, nr, obs, obs_s
     return arcis_spec_2
     
 ### Preprocessing for spectra and parameters
-def preprocess(np_theta, arcis_spec, r, samples_per_round, obs_spec,noise_spec,naug,do_pca, n_pca, xnorm, rem_mean, output, device):
+def preprocess(np_theta, arcis_spec, r, samples_per_round, obs_spec,noise_spec,naug,do_pca, n_pca, xnorm, rem_mean, output, device, args):
     theta_aug = torch.tensor(np.repeat(np_theta, naug, axis=0), dtype=torch.float32, device=device)
     arcis_spec_aug = np.repeat(arcis_spec,naug,axis=0) + noise_spec*np.random.randn(samples_per_round*naug, obs_spec.shape[0]) #surely this can be changed to arcis_spec.shape ?? Apparently not
 
@@ -306,7 +310,10 @@ def preprocess(np_theta, arcis_spec, r, samples_per_round, obs_spec,noise_spec,n
             
     pca=pickle.load(open(output+'/pca.p', 'rb'))
     xscaler=pickle.load(open(output+'/xscaler.p', 'rb'))
-    # x_f = torch.tensor(xscaler.transform(pca.transform(rem_mean.transform(arcis_spec_aug))), dtype=torch.float32, device=device)
-    x_f = torch.tensor(xscaler.transform(pca.transform(sigma_res_scale.transform(arcis_spec_aug, obs_spec.reshape(1,-1), noise_spec.reshape(1,-1)))), dtype=torch.float32, device=device)
+    if args.res_scale:
+        print('Training on residuals')
+        x_f = torch.tensor(xscaler.transform(pca.transform(sigma_res_scale.transform(arcis_spec_aug, obs_spec.reshape(1,-1), noise_spec.reshape(1,-1)))), dtype=torch.float32, device=device)
+    else:
+        x_f = torch.tensor(xscaler.transform(pca.transform(rem_mean.transform(arcis_spec_aug))), dtype=torch.float32, device=device)
 
     return theta_aug, x_f, xscaler, pca
