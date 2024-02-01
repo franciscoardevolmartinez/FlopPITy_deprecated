@@ -139,7 +139,27 @@ class Normalizer():
         for i in range(Y.shape[1]):
             Yi[:,i] = (Y[:,i]+1)*(self.bounds[i][1] - self.bounds[i][0])/2 + self.bounds[i][0]
         return Yi
+
+class sigma_res_scale():
+    def __init__(self):
+        return
     
+    def transform(data,obs,noise):
+        return (data - obs)/noise
+        
+    def inverse_transform(sigma_res,obs,noise):
+        return sigma_res*noise+obs
+              
+class res_scale():
+    def __init__(self):
+        return
+    
+    def transform(data, obs):
+        return data - obs
+    
+    def inverse_transform(res, obs):
+        return res + obs
+
 class do_nothing():
     def __init__(self):
         return
@@ -286,6 +306,7 @@ def preprocess(np_theta, arcis_spec, r, samples_per_round, obs_spec,noise_spec,n
             
     pca=pickle.load(open(output+'/pca.p', 'rb'))
     xscaler=pickle.load(open(output+'/xscaler.p', 'rb'))
-    x_f = torch.tensor(xscaler.transform(pca.transform(rem_mean.transform(arcis_spec_aug))), dtype=torch.float32, device=device)
+    # x_f = torch.tensor(xscaler.transform(pca.transform(rem_mean.transform(arcis_spec_aug))), dtype=torch.float32, device=device)
+    x_f = torch.tensor(xscaler.transform(pca.transform(sigma_res_scale.transform(arcis_spec_aug, obs_spec.reshape(1,-1), noise_spec.reshape(1,-1)))), dtype=torch.float32, device=device)
 
     return theta_aug, x_f, xscaler, pca

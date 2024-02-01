@@ -133,7 +133,8 @@ else:
 if args.embedding:
     print('Using an embedding network.')
     # summary = SummaryNet(obs_spec.shape[0], args.embed_size)
-    summary = CNNEmbedding(input_shape=(obs_spec.shape[0],), out_channels_per_layer=[6,12,24], num_conv_layers=3, num_linear_layers=3, num_linear_units=512, output_dim=args.embed_size)
+    summary = CNNEmbedding(input_shape=(obs_spec.shape[0],), out_channels_per_layer=[6,12,24], num_conv_layers=3, num_linear_layers=3, num_linear_units=512, 
+                           output_dim=min([obs_spec.shape[0], args.embed_size]))
 else:
     summary = nn.Identity()
 #######################
@@ -392,7 +393,8 @@ while r<num_rounds:
 
     ##### GENERATE POSTERIOR AND UPDATE PROPOSAL
     
-    default_x = xscaler.transform(pca.transform(rem_mean.transform(obs_spec.reshape(1,-1))))
+    # default_x = xscaler.transform(pca.transform(rem_mean.transform(obs_spec.reshape(1,-1))))
+    default_x = xscaler.transform(pca.transform(sigma_res_scale.transform(obs_spec.reshape(1,-1), obs_spec.reshape(1,-1), noise_spec.reshape(1,-1))))
     
     # potential_fn, theta_transform = posterior_estimator_based_potential(posterior_estimator, proposal, default_x)
     # posterior = MCMCPosterior(potential_fn, proposal=proposal, theta_transform=theta_transform).set_default_x(default_x)
