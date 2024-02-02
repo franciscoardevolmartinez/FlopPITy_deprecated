@@ -91,6 +91,60 @@ class SummaryNet(nn.Module):
         x = F.elu(self.fc10(x))
         return x
     
+class multiNet(nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        self.fc1 = nn.Linear(408, 512)
+        self.fc2 = nn.Linear(512, 512)
+        self.fc3= nn.Linear(512, 256)
+        self.fc4= nn.Linear(256, 256)
+        self.fc5= nn.Linear(256, 256)
+        self.fc6= nn.Linear(256, 128)
+        self.fc7= nn.Linear(128, 128)
+        self.fc8= nn.Linear(128, 128)
+        self.fc9= nn.Linear(128, 128)
+        self.fc10= nn.Linear(128, 32)
+        
+        self.fc1_1 = nn.Linear(1391, 512)
+        self.fc2_1 = nn.Linear(512, 512)
+        self.fc3_1= nn.Linear(512, 256)
+        self.fc4_1= nn.Linear(256, 256)
+        self.fc5_1= nn.Linear(256, 256)
+        self.fc6_1= nn.Linear(256, 128)
+        self.fc7_1= nn.Linear(128, 128)
+        self.fc8_1= nn.Linear(128, 128)
+        self.fc9_1= nn.Linear(128, 128)
+        self.fc10_1= nn.Linear(128, 128)
+
+    def forward(self, X):
+        x = X[:,:408]
+        y = X[:,408:]
+        
+        x = F.elu(self.fc1(x))
+        x = F.elu(self.fc2(x))
+        x = F.elu(self.fc3(x))
+        x = F.elu(self.fc4(x))
+        x = F.elu(self.fc5(x))
+        x = F.elu(self.fc6(x))
+        x = F.elu(self.fc7(x))
+        x = F.elu(self.fc8(x))
+        x = F.elu(self.fc9(x))
+        x = F.elu(self.fc10(x))
+        
+        y = F.elu(self.fc1_1(y))
+        y = F.elu(self.fc2_1(y))
+        y = F.elu(self.fc3_1(y))
+        y = F.elu(self.fc4_1(y))
+        y = F.elu(self.fc5_1(y))
+        y = F.elu(self.fc6_1(y))
+        y = F.elu(self.fc7_1(y))
+        y = F.elu(self.fc8_1(y))
+        y = F.elu(self.fc9_1(y))
+        y = F.elu(self.fc10_1(y))
+        
+        return torch.cat((x, y),dim=1)
+    
 ### Display 1D marginals in console
 def post2txt(post, parnames, prior_bounds, nbins=20, a=33, b=67):
     D = post.shape[1]

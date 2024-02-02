@@ -47,6 +47,7 @@ def parse_args():
     parser.add_argument('-n_pca', type=int, default=50)
     parser.add_argument('-embed_size', type=int, default=64)
     parser.add_argument('-embedding', action='store_true')
+    parser.add_argument('-embedding_type', type=str, default='FC', help='Can be FC, CNN or multi')
     parser.add_argument('-bins', type=int, default=10)
     parser.add_argument('-twoterms', action='store_true')
     parser.add_argument('-blocks', type=int, default=2)
@@ -132,10 +133,18 @@ else:
 
 ##### EMBEDDING NETWORK
 if args.embedding:
-    print('Using an embedding network.')
-    # summary = SummaryNet(obs_spec.shape[0], args.embed_size)
-    summary = CNNEmbedding(input_shape=(obs_spec.shape[0],), out_channels_per_layer=[6,12,24], num_conv_layers=3, num_linear_layers=3, num_linear_units=512, 
+    if args.embedding_type=='FC':
+        print('Using a fully connected embedding network.')
+        summary = SummaryNet(obs_spec.shape[0], args.embed_size)
+    elif args.embedding_type=='CNN':
+        print('Using a convolutional embedding network.')
+        summary = CNNEmbedding(input_shape=(obs_spec.shape[0],), out_channels_per_layer=[6,12,24], num_conv_layers=3, num_linear_layers=3, num_linear_units=512, 
                            output_dim=min([obs_spec.shape[0], args.embed_size]))
+    elif args.embedding=='multi':
+        print('Using multiple embedding networks.')
+        summary = multiNet()
+    else:
+        raise TypeError('I have literally no clue what kind of embedding you want me to use.')
 else:
     summary = nn.Identity()
 #######################
