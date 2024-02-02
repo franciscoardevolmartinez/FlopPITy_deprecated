@@ -230,7 +230,7 @@ def simulator(fparameters, directory, r, input_file, input2_file, n_global, whic
                 #     off = delta(obsi[:,1], phasej, obsi[:,2])
                 # else:
                 #     off = 0
-                if np.any(phasej<0) or np.any(np.isnan(phasej)):
+                if np.any(phasej<0) or np.any(np.isnan(phasej)) or np.any(np.isinf(phasej)):
                     arcis_spec1[i][sum(l[:j+1]):sum(l[:j+2])] = np.zeros_like(phasej)
                 else:
                     arcis_spec1[i][sum(l[:j+1]):sum(l[:j+2])] = phasej #+off  
@@ -285,7 +285,7 @@ def simulator(fparameters, directory, r, input_file, input2_file, n_global, whic
                         obsn = '/obs0'+str(j+1)
                     phasej = np.loadtxt(model_dir+obsn)[:,1]
                     l.append(len(phasej))
-                    if np.any(phasej<0) or np.any(np.isnan(phasej)):
+                    if np.any(phasej<0) or np.any(np.isnan(phasej)) or np.any(np.isinf(phasej)):
                         arcis_spec2[i][sum(l[:j+1]):sum(l[:j+2])] = np.zeros_like(phasej)
                     else:
                         arcis_spec2[i][sum(l[:j+1]):sum(l[:j+2])] = phasej
