@@ -169,7 +169,7 @@ num_rounds = args.num_rounds
 samples_per_round = args.samples_per_round
 
 if args.custom_nsf:
-    density_estimator_build_fun = posterior_nn(model="nsf", num_transforms=args.transforms, hidden_features=args.hidden, num_bins=args.bins, embedding_net=summary)
+    density_estimator_build_fun = posterior_nn(model="nsf", num_transforms=args.transforms, hidden_features=args.hidden, num_bins=args.bins, embedding_net=summary, num_blocks=args.blocks)
     inference = SNPE_C(prior = prior, density_estimator=density_estimator_build_fun, device=args.device)
 else:
     inference = SNPE_C(prior = prior, density_estimator='nsf', device=args.device)
