@@ -140,7 +140,7 @@ if args.embedding:
         print('Using a convolutional embedding network.')
         summary = CNNEmbedding(input_shape=(obs_spec.shape[0],), out_channels_per_layer=[6,12,24], num_conv_layers=3, num_linear_layers=3, num_linear_units=512, 
                            output_dim=min([obs_spec.shape[0], args.embed_size]))
-    elif args.embedding=='multi':
+    elif args.embedding_type=='multi':
         print('Using multiple embedding networks.')
         summary = multiNet()
     else:
