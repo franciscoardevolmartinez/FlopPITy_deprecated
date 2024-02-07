@@ -47,7 +47,7 @@ def parse_args():
     parser.add_argument('-n_pca', type=int, default=50)
     parser.add_argument('-embed_size', type=int, default=64)
     parser.add_argument('-embedding', action='store_true')
-    parser.add_argument('-embedding_type', type=str, default='FC', help='Can be FC, CNN or multi')
+    parser.add_argument('-embedding_type', type=str, default='CNN', help='Can be FC, CNN or multi')
     parser.add_argument('-bins', type=int, default=10)
     parser.add_argument('-twoterms', action='store_true')
     parser.add_argument('-blocks', type=int, default=2)
