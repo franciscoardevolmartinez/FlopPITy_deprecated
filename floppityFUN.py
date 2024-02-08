@@ -104,7 +104,7 @@ class multiNet(nn.Module):
         self.fc7= nn.Linear(128, 128)
         self.fc8= nn.Linear(128, 128)
         self.fc9= nn.Linear(128, 128)
-        self.fc10= nn.Linear(128, 32)
+        self.fc10= nn.Linear(128, 128)
         
         self.fc1_1 = nn.Linear(1391, 512)
         self.fc2_1 = nn.Linear(512, 512)
@@ -115,7 +115,7 @@ class multiNet(nn.Module):
         self.fc7_1= nn.Linear(128, 128)
         self.fc8_1= nn.Linear(128, 128)
         self.fc9_1= nn.Linear(128, 128)
-        self.fc10_1= nn.Linear(128, 128)
+        self.fc10_1= nn.Linear(128, 32)
 
     def forward(self, X):
         x = X[:,:408]
