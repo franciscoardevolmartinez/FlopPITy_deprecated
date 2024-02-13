@@ -93,9 +93,10 @@ class FCNet(nn.Module):
     
 class multiNet(nn.Module):
 
-    def __init__(self):
+    def __init__(self, nwvl):
         super().__init__()
-        self.fc1 = nn.Linear(408, 512)
+        self.nwvl = nwvl
+        self.fc1 = nn.Linear(self.nwvl[0], 512)
         self.fc2 = nn.Linear(512, 512)
         self.fc3= nn.Linear(512, 256)
         self.fc4= nn.Linear(256, 256)
@@ -106,7 +107,7 @@ class multiNet(nn.Module):
         self.fc9= nn.Linear(128, 128)
         self.fc10= nn.Linear(128, 128)
         
-        self.fc1_1 = nn.Linear(1391, 512)
+        self.fc1_1 = nn.Linear(self.nwvl[1], 512)
         self.fc2_1 = nn.Linear(512, 512)
         self.fc3_1= nn.Linear(512, 256)
         self.fc4_1= nn.Linear(256, 256)
@@ -116,10 +117,11 @@ class multiNet(nn.Module):
         self.fc8_1= nn.Linear(128, 128)
         self.fc9_1= nn.Linear(128, 128)
         self.fc10_1= nn.Linear(128, 128)
+        
 
     def forward(self, X):
-        x = X[:,:408]
-        y = X[:,408:]
+        x = X[:,:self.nwvl[0]]
+        y = X[:,self.nwvl[0]:]
         
         x = F.elu(self.fc1(x))
         x = F.elu(self.fc2(x))
