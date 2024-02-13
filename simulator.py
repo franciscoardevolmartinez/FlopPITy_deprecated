@@ -141,7 +141,7 @@ def read_input(args):
     if args.fit_offset:
         assert len(offsets)<len(obs), 'Are you sure you want more offsets than observations?'
           
-    return parnames, prior_bounds,obs, obs_spec, noise_spec, nr, which,nwvl
+    return parnames, prior_bounds,obs, obs_spec, noise_spec, nr, which, nwvl
 
 # def x2Ppoints(x, nTpoints):
 #     Pmin=1e2

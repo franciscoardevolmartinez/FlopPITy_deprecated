@@ -63,7 +63,7 @@ def evidence_w_all(posterior, prior, samples, Y, obs, err, do_pca, xnorm):
     return logZ
 
 ### Embedding network
-class SummaryNet(nn.Module):
+class FCNet(nn.Module):
 
     def __init__(self, size_in, size):
         super().__init__()
@@ -76,7 +76,7 @@ class SummaryNet(nn.Module):
         self.fc7= nn.Linear(128, 128)
         self.fc8= nn.Linear(128, 128)
         self.fc9= nn.Linear(128, 128)
-        self.fc10= nn.Linear(128, 128)
+        self.fc10= nn.Linear(128, size)
 
     def forward(self, x):
         x = F.elu(self.fc1(x))
@@ -104,7 +104,7 @@ class multiNet(nn.Module):
         self.fc7= nn.Linear(128, 128)
         self.fc8= nn.Linear(128, 128)
         self.fc9= nn.Linear(128, 128)
-        self.fc10= nn.Linear(128, 32)
+        self.fc10= nn.Linear(128, 128)
         
         self.fc1_1 = nn.Linear(1391, 512)
         self.fc2_1 = nn.Linear(512, 512)
@@ -145,48 +145,54 @@ class multiNet(nn.Module):
         
         return torch.cat((x, y),dim=1)
     
+def calculate_filter_output_size(input_size, padding, dilation, kernel, stride) -> int:
+    """Returns output size of a filter given filter arguments.
+
+    Uses formulas from https://pytorch.org/docs/stable/generated/torch.nn.Conv2d.html.
+    """
+
+    return int(
+        (int(input_size) + 2 * int(padding) - int(dilation) * (int(kernel) - 1) - 1)
+        / int(stride)
+        + 1
+    )
+    
 class multi_convNet(nn.Module):
 
-    def __init__(self):
+    def __init__(self, nwvl, size):
         super().__init__()
-        self.fc1 = nn.Conv1D(408, 512)
-        self.fc2 = nn.Conv1D(512, 512)
-        self.fc3= nn.Conv1D(512, 256)
-        self.fc4= nn.Conv1D(256, 256)
-        self.fc5= nn.Conv1D(256, 256)
-        self.fc6= nn.Conv1D(256, 128)
-        self.fc7= nn.Linear(128, 128)
-        self.fc8= nn.Linear(128, 128)
-        self.fc9= nn.Linear(128, 128)
-        self.fc10= nn.Linear(128, 32)
+        # self.fc1 = nn.Conv1D(408, 512)
+        # self.fc2 = nn.Conv1D(512, 512)
+        # self.fc3= nn.Conv1D(512, 256)
+        # self.fc4= nn.Conv1D(256, 256)
+        # self.fc5= nn.Conv1D(256, 256)
+        # self.fc6= nn.Conv1D(256, 128)
+        # self.fc7= nn.Linear(128, 128)
+        # self.fc8= nn.Linear(128, 128)
+        # self.fc9= nn.Linear(128, 128)
+        # self.fc10= nn.Linear(128, 32)
+        self.nwvl = nwvl
+        self.size = size
 
     def forward(self, X):
-        x = X[:,:408]
-        y = X[:,408:]
         
-        x = F.elu(self.fc1(x))
-        x = F.elu(self.fc2(x))
-        x = F.elu(self.fc3(x))
-        x = F.elu(self.fc4(x))
-        x = F.elu(self.fc5(x))
-        x = F.elu(self.fc6(x))
-        x = F.elu(self.fc7(x))
-        x = F.elu(self.fc8(x))
-        x = F.elu(self.fc9(x))
-        x = F.elu(self.fc10(x))
+        x = []
         
-        y = F.elu(self.fc1_1(y))
-        y = F.elu(self.fc2_1(y))
-        y = F.elu(self.fc3_1(y))
-        y = F.elu(self.fc4_1(y))
-        y = F.elu(self.fc5_1(y))
-        y = F.elu(self.fc6_1(y))
-        y = F.elu(self.fc7_1(y))
-        y = F.elu(self.fc8_1(y))
-        y = F.elu(self.fc9_1(y))
-        y = F.elu(self.fc10_1(y))
-        
-        return torch.cat((x, y),dim=1)
+        for i in range(len(self.nwvl)):
+            print(i)
+            x.append(X[:, int(sum(self.nwvl[:i])):int(sum(self.nwvl[:i+1]))])
+            print(x[i])
+            print('Going in')
+            x[i] = F.elu(nn.Conv1d(1, 3, 5)(x[i]))
+            x[i] = F.elu(nn.Conv1d(3, 6, 5)(x[i]))
+            x[i] = F.elu(nn.Conv1d(6, 12, 5)(x[i]))
+            x[i] = torch.flatten(x[i])
+            x[i] = F.elu(nn.Linear(int(torch.tensor(x[i].size()[0])), 512)(x[i]))
+            x[i] = F.elu(nn.Linear(512, 512)(x[i]))
+            x[i] = F.elu(nn.Linear(512, self.size)(x[i]))
+            print('Coming out')
+
+        return torch.cat(x,dim=0)
     
 ### Display 1D marginals in console
 def post2txt(post, parnames, prior_bounds, nbins=20, a=33, b=67):

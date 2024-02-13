@@ -135,10 +135,10 @@ else:
 if args.embedding:
     if args.embedding_type=='FC':
         print('Using a fully connected embedding network.')
-        summary = SummaryNet(obs_spec.shape[0], args.embed_size)
+        summary = FCNet(obs_spec.shape[0], args.embed_size)
     elif args.embedding_type=='CNN':
         print('Using a convolutional embedding network.')
-        summary = CNNEmbedding(input_shape=(obs_spec.shape[0],), out_channels_per_layer=[6,12,24], num_conv_layers=3, num_linear_layers=3, num_linear_units=512, 
+        summary = CNNEmbedding(input_shape=(obs_spec.shape[0],), out_channels_per_layer=[6,12,24], num_conv_layers=3, kernel_size=5, num_linear_layers=3, num_linear_units=512, 
                            output_dim=min([obs_spec.shape[0], args.embed_size]))
     elif args.embedding_type=='multi':
         print('Using multiple embedding networks.')
