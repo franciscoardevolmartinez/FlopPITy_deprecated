@@ -142,7 +142,7 @@ if args.embedding:
                            output_dim=min([obs_spec.shape[0], args.embed_size]))
     elif args.embedding_type=='multi':
         print('Using multiple embedding networks.')
-        summary = multiNet()
+        summary = multiNet(nwvl)
     else:
         raise TypeError('I have literally no clue what kind of embedding you want me to use.')
 else:
