@@ -2,6 +2,7 @@
 
 # import sys
 import torch
+from torch import Tensor
 import torch.nn as nn
 import torch.nn.functional as F
 import warnings
@@ -12,8 +13,10 @@ from sklearn.preprocessing import StandardScaler, QuantileTransformer
 from sklearn.decomposition import PCA, TruncatedSVD
 from time import time
 import logging
+from typing import List, Optional, Tuple, Union
 import os
 logging.getLogger('matplotlib').setLevel(logging.WARNING)
+from sbi.neural_nets.embedding_nets import FCEmbedding, CNNEmbedding, PermutationInvariantEmbedding
 from simulator import *
 
 ### (Log) likelihood. Necessary to compute (log) evidence
@@ -62,139 +65,58 @@ def evidence_w_all(posterior, prior, samples, Y, obs, err, do_pca, xnorm):
     logZ[1] = np.percentile(-(P-pi-L), 16)
     return logZ
 
-### Embedding network
-class FCNet(nn.Module):
-
-    def __init__(self, size_in, size):
-        super().__init__()
-        self.fc1 = nn.Linear(size_in, 512)
-        self.fc2 = nn.Linear(512, 512)
-        self.fc3= nn.Linear(512, 256)
-        self.fc4= nn.Linear(256, 256)
-        self.fc5= nn.Linear(256, 256)
-        self.fc6= nn.Linear(256, 128)
-        self.fc7= nn.Linear(128, 128)
-        self.fc8= nn.Linear(128, 128)
-        self.fc9= nn.Linear(128, 128)
-        self.fc10= nn.Linear(128, size)
-
-    def forward(self, x):
-        x = F.elu(self.fc1(x))
-        x = F.elu(self.fc2(x))
-        x = F.elu(self.fc3(x))
-        x = F.elu(self.fc4(x))
-        x = F.elu(self.fc5(x))
-        x = F.elu(self.fc6(x))
-        x = F.elu(self.fc7(x))
-        x = F.elu(self.fc8(x))
-        x = F.elu(self.fc9(x))
-        x = F.elu(self.fc10(x))
-        return x
+def unroll_embed_hypers(embed_hypers, embed_size):
+    output_dims=embed_size.split(',')
+    for i in range(len(output_dims)):
+        output_dims[i]=int(output_dims[i])
+        
+    hypers = embed_hypers.split(',')
+    
+    num_conv_layers = int(hypers[0])
+    out_channels_per_layer = []
+    for i in range(num_conv_layers):
+        out_channels_per_layer.append(int(hypers[1])*(i+1))
+    num_linear_layers = int(hypers[2])
+    num_linear_units = int(hypers[3])
+    kernel_size = int(hypers[4])
+        
+    return num_conv_layers, out_channels_per_layer, num_linear_layers, num_linear_units, kernel_size, output_dims
     
 class multiNet(nn.Module):
-
-    def __init__(self, nwvl):
-        super().__init__()
+    def __init__(
+        self,
+        nwvl,
+        input_shape: Tuple,
+        in_channels: int = 1,
+        out_channels_per_layer: List = [6, 12],
+        num_conv_layers: int = 2,
+        num_linear_layers: int = 2,
+        num_linear_units: int = 50,
+        output_dim: List = [20, 20],
+        kernel_size: int = 5,
+        pool_kernel_size: int = 2,
+    ):
+        super(multiNet, self).__init__()
+        
+        self.nets = []
         self.nwvl = nwvl
-        self.fc1 = nn.Linear(int(self.nwvl[0]), 512)
-        self.fc2 = nn.Linear(512, 512)
-        self.fc3= nn.Linear(512, 256)
-        self.fc4= nn.Linear(256, 256)
-        self.fc5= nn.Linear(256, 256)
-        self.fc6= nn.Linear(256, 128)
-        self.fc7= nn.Linear(128, 128)
-        self.fc8= nn.Linear(128, 128)
-        self.fc9= nn.Linear(128, 128)
-        self.fc10= nn.Linear(128, 128)
-        
-        self.fc1_1 = nn.Linear(int(self.nwvl[1]), 512)
-        self.fc2_1 = nn.Linear(512, 512)
-        self.fc3_1= nn.Linear(512, 256)
-        self.fc4_1= nn.Linear(256, 256)
-        self.fc5_1= nn.Linear(256, 256)
-        self.fc6_1= nn.Linear(256, 128)
-        self.fc7_1= nn.Linear(128, 128)
-        self.fc8_1= nn.Linear(128, 128)
-        self.fc9_1= nn.Linear(128, 128)
-        self.fc10_1= nn.Linear(128, 128)
-        
-
-    def forward(self, X):
-        x = X[:,:int(self.nwvl[0])]
-        y = X[:,int(self.nwvl[0]):]
-        
-        x = F.elu(self.fc1(x))
-        x = F.elu(self.fc2(x))
-        x = F.elu(self.fc3(x))
-        x = F.elu(self.fc4(x))
-        x = F.elu(self.fc5(x))
-        x = F.elu(self.fc6(x))
-        x = F.elu(self.fc7(x))
-        x = F.elu(self.fc8(x))
-        x = F.elu(self.fc9(x))
-        x = F.elu(self.fc10(x))
-        
-        y = F.elu(self.fc1_1(y))
-        y = F.elu(self.fc2_1(y))
-        y = F.elu(self.fc3_1(y))
-        y = F.elu(self.fc4_1(y))
-        y = F.elu(self.fc5_1(y))
-        y = F.elu(self.fc6_1(y))
-        y = F.elu(self.fc7_1(y))
-        y = F.elu(self.fc8_1(y))
-        y = F.elu(self.fc9_1(y))
-        y = F.elu(self.fc10_1(y))
-        
-        return torch.cat((x, y),dim=1)
-    
-def calculate_filter_output_size(input_size, padding, dilation, kernel, stride) -> int:
-    """Returns output size of a filter given filter arguments.
-
-    Uses formulas from https://pytorch.org/docs/stable/generated/torch.nn.Conv2d.html.
-    """
-
-    return int(
-        (int(input_size) + 2 * int(padding) - int(dilation) * (int(kernel) - 1) - 1)
-        / int(stride)
-        + 1
-    )
-    
-class multi_convNet(nn.Module):
-
-    def __init__(self, nwvl, size):
-        super().__init__()
-        # self.fc1 = nn.Conv1D(408, 512)
-        # self.fc2 = nn.Conv1D(512, 512)
-        # self.fc3= nn.Conv1D(512, 256)
-        # self.fc4= nn.Conv1D(256, 256)
-        # self.fc5= nn.Conv1D(256, 256)
-        # self.fc6= nn.Conv1D(256, 128)
-        # self.fc7= nn.Linear(128, 128)
-        # self.fc8= nn.Linear(128, 128)
-        # self.fc9= nn.Linear(128, 128)
-        # self.fc10= nn.Linear(128, 32)
-        self.nwvl = nwvl
-        self.size = size
-
-    def forward(self, X):
-        
-        x = []
-        
         for i in range(len(self.nwvl)):
-            print(i)
+            self.nets.append(CNNEmbedding(input_shape=(int(nwvl[i]),),
+                                         out_channels_per_layer=out_channels_per_layer,
+                                         num_conv_layers=num_conv_layers,
+                                         num_linear_layers=num_linear_layers,
+                                         num_linear_units=num_linear_units,
+                                         output_dim=output_dim[i],
+                                         kernel_size=kernel_size,
+                                         pool_kernel_size=pool_kernel_size))
+    
+    def forward(self, X: Tensor) -> Tensor:
+        x=[]
+        for i in range(len(self.nwvl)):
             x.append(X[:, int(sum(self.nwvl[:i])):int(sum(self.nwvl[:i+1]))])
-            print(x[i])
-            print('Going in')
-            x[i] = F.elu(nn.Conv1d(1, 3, 5)(x[i]))
-            x[i] = F.elu(nn.Conv1d(3, 6, 5)(x[i]))
-            x[i] = F.elu(nn.Conv1d(6, 12, 5)(x[i]))
-            x[i] = torch.flatten(x[i])
-            x[i] = F.elu(nn.Linear(int(torch.tensor(x[i].size()[0])), 512)(x[i]))
-            x[i] = F.elu(nn.Linear(512, 512)(x[i]))
-            x[i] = F.elu(nn.Linear(512, self.size)(x[i]))
-            print('Coming out')
-
-        return torch.cat(x,dim=0)
+            x[i] = self.nets[i](x[i])
+            
+        return torch.cat(x, dim=1)
     
 ### Display 1D marginals in console
 def post2txt(post, parnames, prior_bounds, nbins=20, a=33, b=67):

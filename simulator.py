@@ -128,7 +128,7 @@ def read_input(args):
     logging.info('Loading observations...')
     nwvl = np.zeros(len(obs))
     for i in range(len(obs)):
-        nwvl[i] = len(np.loadtxt(obs[i])[:,0])
+        nwvl[i] = int(len(np.loadtxt(obs[i])[:,0]))
     l=[0]
     obs_spec = np.zeros(int(sum(nwvl)))
     noise_spec =np.zeros(int(sum(nwvl)))

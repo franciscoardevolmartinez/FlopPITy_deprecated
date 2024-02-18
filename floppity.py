@@ -45,9 +45,10 @@ def parse_args():
     parser.add_argument('-res_scale', action='store_true')
     parser.add_argument('-naug', type=int, default=1, help='Data augmentation factor')
     parser.add_argument('-n_pca', type=int, default=50)
-    parser.add_argument('-embed_size', type=int, default=64)
+    parser.add_argument('-embed_size', type=str, default='64')
     parser.add_argument('-embedding', action='store_true')
     parser.add_argument('-embedding_type', type=str, default='CNN', help='Can be FC, CNN or multi')
+    parser.add_argument('-embed_hypers', type=str, default='3, 6, 3, 512, 5')
     parser.add_argument('-bins', type=int, default=10)
     parser.add_argument('-twoterms', action='store_true')
     parser.add_argument('-blocks', type=int, default=2)
@@ -142,7 +143,9 @@ if args.embedding:
                            output_dim=min([obs_spec.shape[0], args.embed_size]))
     elif args.embedding_type=='multi':
         print('Using multiple embedding networks.')
-        summary = multiNet(nwvl)
+        num_conv_layers, out_channels_per_layer, num_linear_layers, num_linear_units, kernel_size, output_dims = unroll_embed_hypers(args.embed_hypers, args.embed_size)
+        summary = multiNet(nwvl,input_shape=(obs_spec.shape[0],), num_conv_layers=num_conv_layers, out_channels_per_layer=out_channels_per_layer, kernel_size=kernel_size,
+                           num_linear_layers=num_linear_layers, num_linear_units=num_linear_units, output_dim=output_dims)
     else:
         raise TypeError('I have literally no clue what kind of embedding you want me to use.')
 else:
@@ -399,7 +402,8 @@ while r<num_rounds:
         pickle.dump(inference, file_inference)
     
 
-    posterior_estimator = inference_object.train(show_train_summary=True, stop_after_epochs=args.patience, num_atoms=args.atoms, force_first_round_loss=True, retrain_from_scratch=args.retrain_from_scratch, use_combined_loss=True) #use_combined_loss
+    posterior_estimator = inference_object.train(show_train_summary=True, stop_after_epochs=args.patience, num_atoms=args.atoms, force_first_round_loss=True,
+                                                 retrain_from_scratch=args.retrain_from_scratch, use_combined_loss=True) #use_combined_loss
 
 
     ##### GENERATE POSTERIOR AND UPDATE PROPOSAL
