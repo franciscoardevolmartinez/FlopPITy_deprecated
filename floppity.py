@@ -139,8 +139,9 @@ if args.embedding:
         summary = FCNet(obs_spec.shape[0], args.embed_size)
     elif args.embedding_type=='CNN':
         print('Using a convolutional embedding network.')
-        summary = CNNEmbedding(input_shape=(obs_spec.shape[0],), out_channels_per_layer=[6,12,24], num_conv_layers=3, kernel_size=5, num_linear_layers=3, num_linear_units=512, 
-                           output_dim=min([obs_spec.shape[0], args.embed_size]))
+        num_conv_layers, out_channels_per_layer, num_linear_layers, num_linear_units, kernel_size, output_dims = unroll_embed_hypers(args.embed_hypers, args.embed_size)
+        summary = CNNEmbedding(input_shape=(obs_spec.shape[0],), out_channels_per_layer=out_channels_per_layer, num_conv_layers=num_conv_layers, kernel_size=kernel_size,
+                               num_linear_layers=num_linear_layers, num_linear_units=num_linear_units, output_dim=output_dims[0])
     elif args.embedding_type=='multi':
         print('Using multiple embedding networks.')
         num_conv_layers, out_channels_per_layer, num_linear_layers, num_linear_units, kernel_size, output_dims = unroll_embed_hypers(args.embed_hypers, args.embed_size)
