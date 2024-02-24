@@ -61,6 +61,7 @@ def read_input(args):
         # if 'fitpar:keyword'
         else:
             i+=1
+    init2 = len(parnames)
             
     if args.input2 != 'aintnothinhere':
         print('Reading 2nd input file...')
@@ -141,7 +142,7 @@ def read_input(args):
     if args.fit_offset:
         assert len(offsets)<len(obs), 'Are you sure you want more offsets than observations?'
           
-    return parnames, prior_bounds,obs, obs_spec, noise_spec, nr, which, nwvl
+    return parnames, prior_bounds,obs, obs_spec, noise_spec, nr, which, init2, nwvl
 
 # def x2Ppoints(x, nTpoints):
 #     Pmin=1e2
@@ -168,7 +169,7 @@ def simulator(fparameters, directory, r, input_file, input2_file, n_global, whic
         fname2 = directory+'/round_'+str(r)+str(n)+'_samples2.dat'
     
         parametergrid1 = parameters[:,:n_global]
-        parametergrid2 = parameters[:,:n_global]
+        parametergrid2 = parameters[:,:n_global]            
 
         for i in range(n_global, len(which)):
             if which[i]==1:
@@ -177,6 +178,13 @@ def simulator(fparameters, directory, r, input_file, input2_file, n_global, whic
             elif which[i]==2:
                 print('Appending to limb 2')
                 parametergrid2=np.concatenate((parametergrid2, parameters[:,i:i+1]),axis=1)
+        
+        # for i in range(len(parametergrid1)):
+        #     if parametergrid1[i,n_global]<parametergrid2[i,n_global]:
+        #         mT = parametergrid1[i,n_global]
+        #         MT = parametergrid2[i,n_global]
+        #         parametergrid1[i,n_global]=MT
+        #         parametergrid2[i,n_global]=mT
 
         np.savetxt(fname, parametergrid1)
         np.savetxt(fname2, parametergrid2)

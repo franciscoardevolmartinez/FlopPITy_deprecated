@@ -112,7 +112,7 @@ if args.input2!='aintnothinhere':
 
 
 
-parnames, prior_bounds, obs, obs_spec, noise_spec, nr, which, nwvl = read_input(args)
+parnames, prior_bounds, obs, obs_spec, noise_spec, nr, which, init2, nwvl = read_input(args)
 #####################
 
 ##### READ INPUT FILE
@@ -260,6 +260,14 @@ while r<num_rounds:
         print('Samples per round: ', samples_per_round)
         theta = proposal.sample((samples_per_round,))
         np_theta[r] = theta.cpu().detach().numpy().reshape([-1, len(prior_bounds)])
+        
+        if args.input2!='aintnothinhere':
+            for i in range(samples_per_round):
+                if np_theta[r][i,args.n_global]<np_theta[r][i,init2]:
+                    lT = np_theta[r][i,args.n_global]
+                    hT = np_theta[r][i,init2]
+                    np_theta[r][i,args.n_global] = hT
+                    np_theta[r][i,init2] = lT
         
         
         ##### NORMALIZE IF NECESSARY
