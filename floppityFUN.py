@@ -110,14 +110,13 @@ class multiNet(nn.Module):
                                          kernel_size=kernel_size,
                                          pool_kernel_size=pool_kernel_size))
             
-        print('I am actually using an embedding network, are you sure this is what you want?')
     
     def forward(self, X: Tensor) -> Tensor:
         x=[]
         for i in range(len(self.nwvl)):
             x.append(X[:, int(sum(self.nwvl[:i])):int(sum(self.nwvl[:i+1]))])
             x[i] = self.nets[i](x[i])
-            
+                        
         return torch.cat(x, dim=1)
     
 ### Display 1D marginals in console
@@ -254,7 +253,7 @@ def compute(params, nprocesses, output, arginput, arginput2, n_global, which, yn
 
     # tic=time()
     print('Running ARCiS')
-    print(f'Computing {str(samples_per_process)} models per process')
+    # print(f'Computing {str(samples_per_process)} models per process')
     logging.info('Running ARCiS')
     logging.info('Computing '+str(samples_per_process)+' models per process ')
     with Pool(processes = nprocesses) as pool:

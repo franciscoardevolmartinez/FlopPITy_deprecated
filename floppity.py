@@ -48,7 +48,7 @@ def parse_args():
     parser.add_argument('-embed_size', type=str, default='64')
     parser.add_argument('-embedding', action='store_true')
     parser.add_argument('-embedding_type', type=str, default='CNN', help='Can be FC, CNN or multi')
-    parser.add_argument('-embed_hypers', type=str, default='3, 6, 3, 512, 5')
+    parser.add_argument('-embed_hypers', type=str, default='2, 6, 2, 64, 5')
     parser.add_argument('-bins', type=int, default=10)
     parser.add_argument('-twoterms', action='store_true')
     parser.add_argument('-blocks', type=int, default=2)
