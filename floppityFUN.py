@@ -109,6 +109,8 @@ class multiNet(nn.Module):
                                          output_dim=output_dim[i],
                                          kernel_size=kernel_size,
                                          pool_kernel_size=pool_kernel_size))
+            
+        print('I am actually using an embedding network, are you sure this is what you want?')
     
     def forward(self, X: Tensor) -> Tensor:
         x=[]
@@ -228,9 +230,13 @@ class rm_mean():
 
 ### COMPUTE FORWARD MODELS FROM NORMALISED PARAMETERS
 def compute(params, nprocesses, output, arginput, arginput2, n_global, which, ynorm, r, nr, obs, obs_spec,nwvl,args):
-    samples_per_process = len(params)//nprocesses
+    
+    
+    samples_per_process = len(params)//nprocesses*np.ones(nprocesses, dtype=int)
+    rem = int(len(params)-sum(samples_per_process))
+    samples_per_process[:rem]+=np.ones(rem,dtype=int)    
 
-    print('Samples per process: ', samples_per_process)
+    print(f'Samples per process: {samples_per_process[0]}')
     freeT=False
     parargs=[]
     # if ynorm:
@@ -242,9 +248,9 @@ def compute(params, nprocesses, output, arginput, arginput2, n_global, which, yn
     #         parargs.append((params[i*samples_per_process:(i+1)*samples_per_process], args.output, r, args.input, freeT, nTpoints, nr,i, len(obs), len(obs_spec)))
     #     parargs.append((params[(args.processes-1)*samples_per_process:], args.output, r, args.input, freeT, nTpoints, nr,args.processes-1, len(obs), len(obs_spec)))
     # else:
-    for i in range(nprocesses-1):
-        parargs.append((params[i*samples_per_process:(i+1)*samples_per_process], output, r, arginput, arginput2, n_global, which, nr, i, len(obs), len(obs_spec),nwvl, args))
-    parargs.append((params[(nprocesses-1)*samples_per_process:], output, r, arginput, arginput2, n_global, which, nr, nprocesses-1, len(obs), len(obs_spec),nwvl, args))
+    for i in range(nprocesses):
+        parargs.append((params[i*samples_per_process[i]:(i+1)*samples_per_process[i]], output, r, arginput, arginput2, n_global, which, nr, i, len(obs), len(obs_spec),nwvl, args))
+    # parargs.append((params[(nprocesses-1)*samples_per_process:], output, r, arginput, arginput2, n_global, which, nr, nprocesses-1, len(obs), len(obs_spec),nwvl, args))
 
     # tic=time()
     print('Running ARCiS')
