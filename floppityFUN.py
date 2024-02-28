@@ -110,7 +110,6 @@ class multiNet(nn.Module):
                                          kernel_size=kernel_size,
                                          pool_kernel_size=pool_kernel_size))
             
-    
     def forward(self, X: Tensor) -> Tensor:
         x=[]
         for i in range(len(self.nwvl)):

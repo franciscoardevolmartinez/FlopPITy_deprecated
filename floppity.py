@@ -300,8 +300,8 @@ while r<num_rounds:
         ##### CHECK IF ALL MODELS WERE COMPUTED AND COMPUTE REMAINING IF NOT
         sm = np.sum(arcis_spec[r], axis=1)
 
-        arcis_spec[r] = arcis_spec[r][sm!=0]
-        np_theta[r] = np_theta[r][sm!=0]
+        arcis_spec[r] = arcis_spec[r][sm>=0]
+        np_theta[r] = np_theta[r][sm>=0]
 
         crash_count=0    
         while len(arcis_spec[r])<samples_per_round:
@@ -318,8 +318,8 @@ while r<num_rounds:
 
             sm_ac = np.sum(arcis_spec_ac, axis=1)
 
-            arcis_spec[r] = np.concatenate((arcis_spec[r], arcis_spec_ac[sm_ac!=0]))
-            np_theta[r] = np.concatenate((np_theta[r], np_theta_ac[sm_ac!=0]))
+            arcis_spec[r] = np.concatenate((arcis_spec[r], arcis_spec_ac[sm_ac>=0]))
+            np_theta[r] = np.concatenate((np_theta[r], np_theta_ac[sm_ac>=0]))
             
         model_time.append(time()-tic_compute)  
         logging.info('Time elapsed: '+ str(time()-tic_compute))
