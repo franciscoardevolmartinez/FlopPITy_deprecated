@@ -254,7 +254,7 @@ def compute(params, nprocesses, output, arginput, arginput2, n_global, which, yn
     print('Running ARCiS')
     # print(f'Computing {str(samples_per_process)} models per process')
     logging.info('Running ARCiS')
-    logging.info('Computing '+str(samples_per_process)+' models per process ')
+    logging.info('Computing '+str(samples_per_process[0])+' models per process ')
     with Pool(processes = nprocesses) as pool:
         # Simulator is function that returns spectra (needs to be same units as observation)
         arcis_specs = pool.starmap(simulator, parargs)
