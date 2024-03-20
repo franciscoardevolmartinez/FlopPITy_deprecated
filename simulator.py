@@ -15,6 +15,7 @@ import os
 from tqdm import trange
 from multiprocessing import Process
 from multiprocessing import Process, Pool
+import pickle
 
 #### There should be at least two functions in this file:
 ####   - One called 'read_input' that returns a list with the names of the parameters, the prior bounds (as a list of tuples, only supports uniform priors for now), 
@@ -141,6 +142,11 @@ def read_input(args):
     
     if args.fit_offset:
         assert len(offsets)<len(obs), 'Are you sure you want more offsets than observations?'
+        
+    plot_info={}
+    plot_info['parnames']=parnames
+    plot_info['prior_bounds']=prior_bounds
+    pickle.dump(plot_info, open(f'{args.output}/plot_info.p', 'wb'))
           
     return parnames, prior_bounds,obs, obs_spec, noise_spec, nr, which, init2, nwvl
 

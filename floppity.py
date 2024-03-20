@@ -494,3 +494,13 @@ logging.info('Time elapsed computing models: '+ str(sum(model_time)))
 print('\n')
 print('Time elapsed training: ', sum(train_time))
 logging.info('Time elapsed training: '+ str(sum(train_time)))
+
+### Find and simulate MAP
+MAP = proposal.map(x=None, num_iter=1000, num_to_optimize=100, learning_rate=0.01, init_method='posterior', num_init_samples=1000, save_best_every=10, show_progress_bars=True, force_update=False)
+
+os.system(f'cp {args.output}/input_ARCiS.dat {args.output}/map.dat')
+
+with open(f'{args.output}/map.dat', 'a') as mapfile:
+    mapfile.write(f'makeai=.false.')
+    for i in range(len(MAP)):
+        mapfile.write(f'{parnames[i]}={MAP[i]}')
