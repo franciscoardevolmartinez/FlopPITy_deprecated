@@ -210,7 +210,7 @@ def simulator(fparameters, directory, r, input_file, input2_file, n_global, whic
 
     dirx = directory + '/round_'+str(r)+str(n)+'_out/'
         
-    arcis_spec1 = np.zeros([parameters.shape[0], size])
+    arcis_spec1 = -1*np.ones([parameters.shape[0], size])
         
     print('Reading ARCiS output')
     # logging.info('Reading ARCiS output')
@@ -244,13 +244,11 @@ def simulator(fparameters, directory, r, input_file, input2_file, n_global, whic
                 #     off = delta(obsi[:,1], phasej, obsi[:,2])
                 # else:
                 #     off = 0
-                if np.any(phasej<0) or np.any(np.isnan(phasej)) or np.any(np.isinf(phasej)):
-                    arcis_spec1[i][sum(l[:j+1]):sum(l[:j+2])] = -1*np.ones_like(phasej)
-                else:
+                if not(np.any(phasej<0) or np.any(np.isnan(phasej)) or np.any(np.isinf(phasej))):
                     arcis_spec1[i][sum(l[:j+1]):sum(l[:j+2])] = phasej #+off  
         except:
-            print('Couldn\'t store model ', model_dir)
-            logging.info('Couldn\'t store model ', model_dir)
+            print(f'Couldn\'t store model {model_dir}')
+            logging.info(f'Couldn\'t store model {model_dir}')
             
         tname = directory+'/T_round_'+str(r)+str(n)
         add = 'I'
