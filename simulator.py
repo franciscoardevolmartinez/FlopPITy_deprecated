@@ -106,11 +106,14 @@ def read_input(args):
         prior_bounds.append([0.,1.])
         
     if args.fit_offset:
-        offsets=args.max_offset.split(',')
+        offsets=args.prior_offset.split(',')
         for i in range(len(offsets)):
             offsets[i]=float(offsets[i])
+        # offset_lim = np.empty(len(offsets)//2)
+        for i in range(len(offsets)//2):
+            # offsets[i]=float(offsets[i])
             parnames.append(f'offset_{i}')
-            prior_bounds.append([-offsets[i], offsets[i]])
+            prior_bounds.append([offsets[2*i], offsets[2*i+1]])
         
     
     prior_bounds=np.array(prior_bounds)
@@ -141,7 +144,7 @@ def read_input(args):
         noise_spec[sum(l[:j+1]):sum(l[:j+2])] = phasej[:,2]
     
     if args.fit_offset:
-        assert len(offsets)<len(obs), 'Are you sure you want more offsets than observations?'
+        assert len(offsets)//2<len(obs), f'Are you sure you want more offsets ({len(offsets)}) than observations ({len(obs)})?'
         
     plot_info={}
     plot_info['parnames']=parnames
@@ -164,9 +167,9 @@ def simulator(fparameters, directory, r, input_file, input2_file, n_global, whic
     fname = directory+'/round_'+str(r)+str(n)+'_samples.dat'
     
     if args.fit_offset:
-        offsets=args.max_offset.split(',')
-        parameters=fparameters[:,:-len(offsets)]
-        offset = fparameters[:,-len(offsets):]
+        offsets=args.prior_offset.split(',')
+        parameters=fparameters[:,:-len(offsets)//2]
+        offset = fparameters[:,-len(offsets)//2:]
     else:
         parameters=fparameters
     
