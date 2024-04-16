@@ -44,6 +44,7 @@ def read_input(args):
 
     parnames=[]
     prior_bounds=[]
+    log=[]
     i=0
     while i<len(clean_in):
         #I think this is just checking the number of atm layers to initialize PT arrays? Sounds inefficient and I should change it
@@ -56,8 +57,10 @@ def read_input(args):
             which.append(1)
             if clean_in[i+3]=='fitpar:log=.true.':
                 prior_bounds.append([np.log10(float(clean_in[i+1][11:].replace('d','e'))), np.log10(float(clean_in[i+2][11:].replace('d','e')))])
+                log.append(True)
             elif clean_in[i+3]=='fitpar:log=.false.':
                 prior_bounds.append([float(clean_in[i+1][11:].replace('d','e')), float(clean_in[i+2][11:].replace('d','e'))])
+                log.append(False)
             i+=4
         # if 'fitpar:keyword'
         else:
@@ -151,7 +154,7 @@ def read_input(args):
     plot_info['prior_bounds']=prior_bounds
     pickle.dump(plot_info, open(f'{args.output}/plot_info.p', 'wb'))
           
-    return parnames, prior_bounds,obs, obs_spec, noise_spec, nr, which, init2, nwvl
+    return parnames, prior_bounds, obs, obs_spec, noise_spec, nr, which, init2, nwvl, log
 
 # def x2Ppoints(x, nTpoints):
 #     Pmin=1e2

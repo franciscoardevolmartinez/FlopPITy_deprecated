@@ -112,7 +112,7 @@ if args.input2!='aintnothinhere':
 
 
 
-parnames, prior_bounds, obs, obs_spec, noise_spec, nr, which, init2, nwvl = read_input(args)
+parnames, prior_bounds, obs, obs_spec, noise_spec, nr, which, init2, nwvl, log = read_input(args)
 #####################
 
 ##### READ INPUT FILE
@@ -504,6 +504,14 @@ if args.ynorm:
 os.system(f'cp {args.output}/input_ARCiS.dat {args.output}/map.dat')
 
 with open(f'{args.output}/map.dat', 'a') as mapfile:
+    mapfile.write(f'\n')
+    mapfile.write(f'******** MAP parameters ********\n')
+    mapfile.write(f'\n')
     mapfile.write(f'makeai=.false.\n')
-    for i in range(len(MAP)):
-        mapfile.write(f'{parnames[i]}={MAP[i]}\n')
+    mapfile.write(f'\n')
+    for i in range(len(parnames)):
+        if 'offset_' not in parnames[i]:
+            if log[i]:
+                mapfile.write(f'{parnames[i]}={10**MAP[i]}\n')
+            else:
+                mapfile.write(f'{parnames[i]}={MAP[i]}\n')
