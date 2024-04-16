@@ -302,6 +302,8 @@ while r<num_rounds:
 
         arcis_spec[r] = arcis_spec[r][sm>=0]
         np_theta[r] = np_theta[r][sm>=0]
+        
+        # print(sm)
 
         crash_count=0    
         while len(arcis_spec[r])<samples_per_round:
@@ -313,8 +315,13 @@ while r<num_rounds:
 
             theta_ac = proposal.sample((remain,))
             np_theta_ac = theta_ac.cpu().detach().numpy().reshape([-1, len(prior_bounds)])
+            
+            if args.ynorm:
+                params_ac=yscaler.inverse_transform(np_theta_ac)
+            else:
+                params_ac = np_theta_ac
 
-            arcis_spec_ac=compute(np_theta_ac, args.processes, args.output,args.input, args.input2, args.n_global, which, args.ynorm, r, nr, obs, obs_spec,nwvl,args)
+            arcis_spec_ac=compute(params_ac, args.processes, args.output,args.input, args.input2, args.n_global, which, args.ynorm, r, nr, obs, obs_spec,nwvl,args)
 
             sm_ac = np.sum(arcis_spec_ac, axis=1)
 
@@ -510,7 +517,9 @@ with open(f'{args.output}/map.dat', 'a') as mapfile:
     mapfile.write(f'makeai=.false.\n')
     mapfile.write(f'\n')
     for i in range(len(parnames)):
-        if 'offset_' not in parnames[i]:
+        if 'offset_' in parnames[i]:
+            mapfile.write(f'*{parnames[i]}={MAP[i]}\n')
+        else:
             if log[i]:
                 mapfile.write(f'{parnames[i]}={10**MAP[i]}\n')
             else:

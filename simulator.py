@@ -116,6 +116,7 @@ def read_input(args):
         for i in range(len(offsets)//2):
             # offsets[i]=float(offsets[i])
             parnames.append(f'offset_{i}')
+            log.append(False)
             prior_bounds.append([offsets[2*i], offsets[2*i+1]])
         
     
@@ -251,6 +252,7 @@ def simulator(fparameters, directory, r, input_file, input2_file, n_global, whic
                 # else:
                 #     off = 0
                 if not(np.any(phasej<0) or np.any(np.isnan(phasej)) or np.any(np.isinf(phasej))):
+                    # print(phasej)
                     arcis_spec1[i][sum(l[:j+1]):sum(l[:j+2])] = phasej #+off  
         except:
             print(f'Couldn\'t store model {model_dir}')
