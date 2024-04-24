@@ -345,7 +345,6 @@ def simulator(fparameters, directory, r, input_file, input2_file, n_global, whic
                 offset[i][j-1] = scale(transobs[int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))], arcis_spec[i][int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))]) # Finding optimal scaling
                 arcis_spec[i][int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))] += offset[i][j-1]
     
-    with open(f'{directory}/offsets_round_{r}.dat', 'wb') as offsetfile:
-        pickle.dump(offset, offsetfile)
+    np.savetxt(f'{directory}/offsets_round_{r}.dat', offset)
     
     return arcis_spec
