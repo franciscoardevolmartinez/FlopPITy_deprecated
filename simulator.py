@@ -339,10 +339,17 @@ def simulator(fparameters, directory, r, input_file, input2_file, n_global, whic
     #### THIS IS A VERY QUICK FIX,,, FIX LATER 
     offset = np.empty([parameters.shape[0], n_obs-1])
     if args.fit_offset and n_obs>1:
+        print('Fitting offsets...')
         for i in range(parameters.shape[0]):
-            
             for j in range(1,n_obs):
-                offset[i][j-1] = scale(transobs[int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))], arcis_spec[i][int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))]) # Finding optimal scaling
+                eps = scale(transobs[int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))], arcis_spec[i][int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))]) # Finding optimal scaling
+                delta=0.5*(max(transobs)-min(transobs))
+                
+                if abs(eps)<delta:
+                    offset[i][j-1]=eps
+                else:
+                    offset[i][j-1]=delta
+                    
                 arcis_spec[i][int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))] += offset[i][j-1]
     
     np.savetxt(f'{directory}/offsets_round_{r}.dat', offset)
