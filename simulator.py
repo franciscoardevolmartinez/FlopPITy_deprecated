@@ -25,6 +25,10 @@ import pickle
 def delta(o,m,s):
     return sum((o-m)/s**2)/sum(1/s**2)
 
+def scale(obs, model):
+    scale = 1/len(obs)*(sum(obs-model))
+    return scale
+
 
 def read_input(args):
     
@@ -108,16 +112,16 @@ def read_input(args):
         parnames.append('frac')
         prior_bounds.append([0.,1.])
         
-    if args.fit_offset:
-        offsets=args.prior_offset.split(',')
-        for i in range(len(offsets)):
-            offsets[i]=float(offsets[i])
-        # offset_lim = np.empty(len(offsets)//2)
-        for i in range(len(offsets)//2):
-            # offsets[i]=float(offsets[i])
-            parnames.append(f'offset_{i}')
-            log.append(False)
-            prior_bounds.append([offsets[2*i], offsets[2*i+1]])
+    # if args.fit_offset:
+    #     offsets=args.prior_offset.split(',')
+    #     for i in range(len(offsets)):
+    #         offsets[i]=float(offsets[i])
+    #     # offset_lim = np.empty(len(offsets)//2)
+    #     for i in range(len(offsets)//2):
+    #         # offsets[i]=float(offsets[i])
+    #         parnames.append(f'offset_{i}')
+    #         log.append(False)
+    #         prior_bounds.append([offsets[2*i], offsets[2*i+1]])
         
     
     prior_bounds=np.array(prior_bounds)
@@ -147,8 +151,8 @@ def read_input(args):
         obs_spec[sum(l[:j+1]):sum(l[:j+2])] = phasej[:,1]
         noise_spec[sum(l[:j+1]):sum(l[:j+2])] = phasej[:,2]
     
-    if args.fit_offset:
-        assert len(offsets)//2<len(obs), f'Are you sure you want more offsets ({len(offsets)}) than observations ({len(obs)})?'
+    # if args.fit_offset:
+    #     assert len(offsets)//2<len(obs), f'Are you sure you want more offsets ({len(offsets)}) than observations ({len(obs)})?'
         
     plot_info={}
     plot_info['parnames']=parnames
@@ -167,15 +171,15 @@ def read_input(args):
 #             Ppoint[j,i] = 10**(np.log10(Ppoint[j,i-1]) + np.log10(Pmax/Ppoint[j,i-1]) * (1- x[j]**(1/(nTpoints-i+1))))
 #     return Ppoint
 
-def simulator(fparameters, directory, r, input_file, input2_file, n_global, which, nr, n, n_obs, size, nwvl, args):
+def simulator(fparameters, directory, r, input_file, input2_file, n_global, which, transobs, nr, n, n_obs, size, nwvl, args):
     fname = directory+'/round_'+str(r)+str(n)+'_samples.dat'
     
-    if args.fit_offset:
-        offsets=args.prior_offset.split(',')
-        parameters=fparameters[:,:-len(offsets)//2]
-        offset = fparameters[:,-len(offsets)//2:]
-    else:
-        parameters=fparameters
+    # if args.fit_offset:
+    #     offsets=args.prior_offset.split(',')
+    #     parameters=fparameters[:,:-len(offsets)//2]
+    #     offset = fparameters[:,-len(offsets)//2:]
+    # else:
+    parameters=fparameters
     
     if input2_file!='aintnothinhere':
         print('Writing parametergridfile for 2nd limb')
@@ -315,7 +319,7 @@ def simulator(fparameters, directory, r, input_file, input2_file, n_global, whic
 
             tname2 = directory+'/T_limb2_round_'+str(r)+str(n)
             add = 'I'
-            np.save(tname+'.npy', T2)
+            np.save(tname2+'.npy', T2)
             np.save(directory+'/P.npy',P2)
         
         if args.fit_frac:
@@ -332,14 +336,16 @@ def simulator(fparameters, directory, r, input_file, input2_file, n_global, whic
     else:
         arcis_spec=arcis_spec1
         
-    #### THIS IS A VERY QUICK FIX,,, FIX LATER    
-    if args.fit_offset:
+    #### THIS IS A VERY QUICK FIX,,, FIX LATER 
+    offset = np.empty([parameters.shape[0], n_obs-1])
+    if args.fit_offset and n_obs>1:
         for i in range(parameters.shape[0]):
-            # print(int(nwvl[0]))
-            # print(int(nwvl[1]))
-            arcis_spec[i][0:int(nwvl[0])]+=offset[i][0]
-            if len(offset[i])>1:
-                for j in range(1,len(offset[i])):
-                    arcis_spec[i][int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))] += offset[i][j]
+            
+            for j in range(1,n_obs):
+                offset[i][j-1] = scale(transobs[int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))], arcis_spec[i][int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))]) # Finding optimal scaling
+                arcis_spec[i][int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))] += offset[i][j-1]
+    
+    with open(f'{directory}/offsets_round_{r}.dat', 'wb') as offsetfile:
+        pickle.dump(offset, offsetfile)
     
     return arcis_spec

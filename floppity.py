@@ -321,7 +321,7 @@ while r<num_rounds:
             else:
                 params_ac = np_theta_ac
 
-            arcis_spec_ac=compute(params_ac, args.processes, args.output,args.input, args.input2, args.n_global, which, args.ynorm, r, nr, obs, obs_spec,nwvl,args)
+            arcis_spec_ac=compute(params_ac, args.processes, args.output,args.input, args.input2, args.n_global, which,  args.ynorm, r, nr, obs, obs_spec,nwvl,args)
 
             sm_ac = np.sum(arcis_spec_ac, axis=1)
 
@@ -420,14 +420,14 @@ while r<num_rounds:
 
     posterior_estimator = inference_object.train(show_train_summary=True, stop_after_epochs=args.patience, num_atoms=args.atoms, force_first_round_loss=True,
                                                  retrain_from_scratch=args.retrain_from_scratch, use_combined_loss=True) #use_combined_loss
-
-
-    ##### GENERATE POSTERIOR AND UPDATE PROPOSAL
     
     if args.res_scale:
         default_x = xscaler.transform(pca.transform(sigma_res_scale.transform(obs_spec.reshape(1,-1), obs_spec.reshape(1,-1), noise_spec.reshape(1,-1))))
     else:
         default_x = xscaler.transform(pca.transform(rem_mean.transform(obs_spec.reshape(1,-1))))
+
+
+    ##### GENERATE POSTERIOR AND UPDATE PROPOSAL
     
     # potential_fn, theta_transform = posterior_estimator_based_potential(posterior_estimator, proposal, default_x)
     # posterior = MCMCPosterior(potential_fn, proposal=proposal, theta_transform=theta_transform).set_default_x(default_x)

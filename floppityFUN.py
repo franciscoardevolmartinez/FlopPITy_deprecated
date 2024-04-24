@@ -26,6 +26,8 @@ def likelihood(obs, err, x):
         L += -np.log(np.sqrt(2*np.pi)*err[i]) + (-(obs[i]-x[i])**2/(2*err[i]**2))
     return L
 
+
+
 def evidence(posterior, prior, samples, Y, obs, err, do_pca, xnorm, rem_mean, xscaler, pca):
     L = np.empty(len(samples))
     for j in range(len(samples)):
@@ -247,7 +249,7 @@ def compute(params, nprocesses, output, arginput, arginput2, n_global, which, yn
     #     parargs.append((params[(args.processes-1)*samples_per_process:], args.output, r, args.input, freeT, nTpoints, nr,args.processes-1, len(obs), len(obs_spec)))
     # else:
     for i in range(nprocesses):
-        parargs.append((params[i*samples_per_process[i]:(i+1)*samples_per_process[i]], output, r, arginput, arginput2, n_global, which, nr, i, len(obs), len(obs_spec),nwvl, args))
+        parargs.append((params[i*samples_per_process[i]:(i+1)*samples_per_process[i]], output, r, arginput, arginput2, n_global, which, obs_spec, nr, i, len(obs), len(obs_spec),nwvl, args))
     # parargs.append((params[(nprocesses-1)*samples_per_process:], output, r, arginput, arginput2, n_global, which, nr, nprocesses-1, len(obs), len(obs_spec),nwvl, args))
 
     # tic=time()
