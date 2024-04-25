@@ -353,6 +353,6 @@ def simulator(fparameters, directory, r, input_file, input2_file, n_global, whic
                     
                 arcis_spec[i][int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))] += offset[i][j-1]
     
-    np.savetxt(f'{directory}/offsets_round_{r}.dat', offset)
+    np.savetxt(f'{directory}/offsets_round_{r}_{n}.dat', offset)
     
     return arcis_spec
