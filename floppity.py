@@ -479,6 +479,46 @@ while r<num_rounds:
     post2txt(samples[-1], parnames,prior_bounds)
     print('\n')
     
+    MAP = proposal.map(x=None, num_iter=100, num_to_optimize=100, learning_rate=0.01, init_method='posterior', num_init_samples=1000, save_best_every=10, show_progress_bars=True, force_update=False)
+
+    if args.ynorm:
+        MAP = yscaler.inverse_transform(MAP.reshape(1,-1))[0]
+
+    os.system(f'cp {args.output}/input_ARCiS.dat {args.output}/map.dat')
+
+    with open(f'{args.output}/map.dat', 'a') as mapfile:
+        mapfile.write(f'\n')
+        mapfile.write(f'******** MAP parameters ********\n')
+        mapfile.write(f'\n')
+        mapfile.write(f'makeai=.false.\n')
+        mapfile.write(f'\n')
+        for i in range(len(parnames)):
+            if 'offset_' in parnames[i]:
+                mapfile.write(f'*{parnames[i]}={MAP[i]}\n')
+            else:
+                if log[i]:
+                    mapfile.write(f'{parnames[i]}={10**MAP[i]}\n')
+                else:
+                    mapfile.write(f'{parnames[i]}={MAP[i]}\n')
+                    
+    ### Tidy up files  
+    print('Tidying up...')
+    offsets = np.loadtxt(f'{args.output}/offsets_round_{r}_{0}.dat')
+    for i in range(1,args.processes):
+        offsets=np.concatenate((offsets, np.loadtxt(f'{output_dir}/offsets_round_{r}_{i}.dat')))
+    with open(f'{args.output}/offsets_round_{r}.npy', 'wb') as file_offsets:
+    np.save(file_offsets, offsets)    
+    
+    Ts = np.load(f'{args.output}/T_round_{r}{0}.npy')
+    for i in range(1,args.processes):
+        Ts=np.concatenate((Ts, np.load(f'{output_dir}/T_round_{r}{i}.npy')))
+    with open(f'{args.output}/T_round_{r}.npy', 'wb') as file_Ts:
+    np.save(file_Ts, Ts)  
+    
+    for j in range(args.processes):
+        os.system(f'rm -rf {args.output}/offsets_round_{r}_{j}.dat')
+        os.system(f'rm -rf {args.output}/T_round_{r}{j}.npy')
+    
     r+=1
     
 print('Inference ended.')    
@@ -503,24 +543,3 @@ print('Time elapsed training: ', sum(train_time))
 logging.info('Time elapsed training: '+ str(sum(train_time)))
 
 ### Find and simulate MAP
-MAP = proposal.map(x=None, num_iter=100, num_to_optimize=100, learning_rate=0.01, init_method='posterior', num_init_samples=1000, save_best_every=10, show_progress_bars=True, force_update=False)
-
-if args.ynorm:
-    MAP = yscaler.inverse_transform(MAP.reshape(1,-1))[0]
-
-os.system(f'cp {args.output}/input_ARCiS.dat {args.output}/map.dat')
-
-with open(f'{args.output}/map.dat', 'a') as mapfile:
-    mapfile.write(f'\n')
-    mapfile.write(f'******** MAP parameters ********\n')
-    mapfile.write(f'\n')
-    mapfile.write(f'makeai=.false.\n')
-    mapfile.write(f'\n')
-    for i in range(len(parnames)):
-        if 'offset_' in parnames[i]:
-            mapfile.write(f'*{parnames[i]}={MAP[i]}\n')
-        else:
-            if log[i]:
-                mapfile.write(f'{parnames[i]}={10**MAP[i]}\n')
-            else:
-                mapfile.write(f'{parnames[i]}={MAP[i]}\n')
