@@ -507,13 +507,13 @@ while r<num_rounds:
     for i in range(1,args.processes):
         offsets=np.concatenate((offsets, np.loadtxt(f'{output_dir}/offsets_round_{r}_{i}.dat')))
     with open(f'{args.output}/offsets_round_{r}.npy', 'wb') as file_offsets:
-    np.save(file_offsets, offsets)    
+        np.save(file_offsets, offsets)    
     
     Ts = np.load(f'{args.output}/T_round_{r}{0}.npy')
     for i in range(1,args.processes):
         Ts=np.concatenate((Ts, np.load(f'{output_dir}/T_round_{r}{i}.npy')))
     with open(f'{args.output}/T_round_{r}.npy', 'wb') as file_Ts:
-    np.save(file_Ts, Ts)  
+        np.save(file_Ts, Ts)  
     
     for j in range(args.processes):
         os.system(f'rm -rf {args.output}/offsets_round_{r}_{j}.dat')
