@@ -351,7 +351,7 @@ def simulator(fparameters, directory, r, input_file, input2_file, n_global, whic
                 if abs(eps)<delta:
                     offset[i][j-1]=eps
                 else:
-                    offset[i][j-1]=delta
+                    offset[i][j-1]=np.sign(eps)*delta
                     
                 arcis_spec[i][int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))] += offset[i][j-1]
     
