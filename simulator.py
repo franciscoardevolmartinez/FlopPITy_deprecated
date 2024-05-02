@@ -343,13 +343,18 @@ def simulator(fparameters, directory, r, input_file, input2_file, n_global, whic
     if args.fit_offset and n_obs>1:
         print('Fitting offsets...')
         for i in range(parameters.shape[0]):
+            
+            # Find the offset between the fixed observation and the spectrum
+            eps0 = scale(transobs[int(sum(nwvl[:0])):int(sum(nwvl[:0+1]))], arcis_spec[i][int(sum(nwvl[:0])):int(sum(nwvl[:0+1]))])
+            # arcis_spec[i]+=eps0
+            
             for j in range(1,n_obs):
                 eps = scale(transobs[int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))], arcis_spec[i][int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))]) # Finding optimal scaling
                 # delta=0.5*(max(transobs)-min(transobs))
                 # delta=5e-4
                 
                 # if abs(eps)<delta:
-                offset[i][j-1]=eps
+                offset[i][j-1]=eps-eps0
                 # else:
                 #     offset[i][j-1]=np.sign(eps)*delta
                     
