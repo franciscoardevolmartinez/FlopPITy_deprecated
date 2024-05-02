@@ -346,12 +346,12 @@ def simulator(fparameters, directory, r, input_file, input2_file, n_global, whic
             for j in range(1,n_obs):
                 eps = scale(transobs[int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))], arcis_spec[i][int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))]) # Finding optimal scaling
                 # delta=0.5*(max(transobs)-min(transobs))
-                delta=5e-4
+                # delta=5e-4
                 
-                if abs(eps)<delta:
-                    offset[i][j-1]=eps
-                else:
-                    offset[i][j-1]=np.sign(eps)*delta
+                # if abs(eps)<delta:
+                offset[i][j-1]=eps
+                # else:
+                #     offset[i][j-1]=np.sign(eps)*delta
                     
                 arcis_spec[i][int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))] += offset[i][j-1]
     
