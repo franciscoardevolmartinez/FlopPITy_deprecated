@@ -344,7 +344,7 @@ def simulator(fparameters, directory, r, input_file, input2_file, n_global, whic
         print('Fitting offsets...')
         for i in range(parameters.shape[0]):
             
-            Find the offset between the fixed observation and the spectrum
+            # Find the offset between the fixed observation and the spectrum
             eps0 = scale(transobs[int(sum(nwvl[:0])):int(sum(nwvl[:0+1]))], arcis_spec[i][int(sum(nwvl[:0])):int(sum(nwvl[:0+1]))])
             # arcis_spec[i]+=eps0
             
