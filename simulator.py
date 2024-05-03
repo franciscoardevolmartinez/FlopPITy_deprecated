@@ -243,25 +243,27 @@ def simulator(fparameters, directory, r, input_file, input2_file, n_global, whic
             PT = np.loadtxt(model_dir+'/mixingratios.dat')
             T[i] = PT[:,0]
             P = PT[:,1]
-            l=[0]
-            for j in range(n_obs):
-                # obsi = np.loadtxt(obs[i])
-                if j+1<10:
-                    obsn = '/obs00'+str(j+1)
-                elif j+1<100:
-                    obsn = '/obs0'+str(j+1)
-                phasej = np.loadtxt(model_dir+obsn)[:,1]
-                l.append(len(phasej))
-                # if args.fit_offset:
-                #     off = delta(obsi[:,1], phasej, obsi[:,2])
-                # else:
-                #     off = 0
-                if not(np.any(phasej<0) or np.any(np.isnan(phasej)) or np.any(np.isinf(phasej))):
-                    # print(phasej)
-                    arcis_spec1[i][sum(l[:j+1]):sum(l[:j+2])] = phasej #+off  
         except:
-            print(f'Couldn\'t store model {model_dir}')
-            logging.info(f'Couldn\'t store model {model_dir}')
+            print(f'Couldn\'t store P-T {model_dir}')
+            logging.info(f'Couldn\'t store P-T {model_dir}')
+        l=[0]
+        for j in range(n_obs):
+            # obsi = np.loadtxt(obs[i])
+            if j+1<10:
+                obsn = '/obs00'+str(j+1)
+            elif j+1<100:
+                obsn = '/obs0'+str(j+1)
+            try:
+                phasej = np.loadtxt(model_dir+obsn)[:,1]
+            except:
+                print(f'Couldn\'t store observation {model_dir}{obsn}')
+                logging.info(f'Couldn\'t store observation {model_dir}{obsn}')
+            l.append(len(phasej))
+            
+            if not(np.any(phasej<0) or np.any(np.isnan(phasej)) or np.any(np.isinf(phasej))):
+                # print(phasej)
+                arcis_spec1[i][sum(l[:j+1]):sum(l[:j+2])] = phasej #+off  
+        
             
             
         tname = directory+'/T_round_'+str(r)+str(n)
