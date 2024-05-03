@@ -127,7 +127,7 @@ parnames, prior_bounds, obs, obs_spec, noise_spec, nr, which, init2, nwvl, log =
 
 #######  REMOVE MEAN? Useful for transmission spectra
 if args.rem_mean:
-    rem_mean=rm_mean()
+    rem_mean=rm_mean(args, nwvl)
 else:
     rem_mean=do_nothing()
 
@@ -332,7 +332,7 @@ while r<num_rounds:
         logging.info('Time elapsed: '+ str(time()-tic_compute))
         print('Time elapsed: ', time()-tic_compute)
 
-    theta_aug, x, xscaler, pca = preprocess(np_theta[r], arcis_spec[r], r, samples_per_round, obs_spec, noise_spec, args.naug, args.do_pca, args.n_pca, args.xnorm, 
+    theta_aug, x, xscaler, pca = preprocess(np_theta[r], arcis_spec[r], r, samples_per_round, obs_spec, noise_spec, args.naug, args.do_pca, args.n_pca, args.xnorm, nwvl,
                                             args.rem_mean, args.output, args.device, args)
     
     

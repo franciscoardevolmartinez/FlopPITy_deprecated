@@ -190,7 +190,7 @@ class res_scale():
         return res + obs
 
 class do_nothing():
-    def __init__(self):
+    def __init__(self, **kwargs):
         return
         
     def transform(self, data):
@@ -204,7 +204,9 @@ class do_nothing():
         return data
     
 class rm_mean():
-    def __init__(self):
+    def __init__(self, args, nwvl):
+        self.eps=args.fit_offset
+        self.nwvl=nwvl
         return
         
     def transform(self, arcis_spec):
@@ -212,7 +214,8 @@ class rm_mean():
         logging.info('Removing the mean')
         print('Removing the mean')
         for i in trange(len(arcis_spec)):
-            xbar=np.mean(arcis_spec[i])
+            if self.eps:
+                xbar=np.mean(arcis_spec[i][int(sum(self.nwvl[:0])):int(sum(self.nwvl[:0+1]))])
             normed[i][:-1] = arcis_spec[i]-xbar
             normed[i][-1] = xbar
     
@@ -314,7 +317,7 @@ def compute_2term(params1,nprocesses, output, arginput, ynorm, r, nr, obs, obs_s
     return arcis_spec_2
     
 ### Preprocessing for spectra and parameters
-def preprocess(np_theta, arcis_spec, r, samples_per_round, obs_spec,noise_spec,naug,do_pca, n_pca, xnorm, rem_mean, output, device, args):
+def preprocess(np_theta, arcis_spec, r, samples_per_round, obs_spec,noise_spec,naug,do_pca, n_pca, xnorm, nwvl, rem_mean, output, device, args):
     theta_aug = torch.tensor(np.repeat(np_theta, naug, axis=0), dtype=torch.float32, device=device)
     arcis_spec_aug = np.repeat(arcis_spec,naug,axis=0) + noise_spec*np.random.randn(samples_per_round*naug, obs_spec.shape[0]) #surely this can be changed to arcis_spec.shape ?? Apparently not
 
@@ -329,7 +332,7 @@ def preprocess(np_theta, arcis_spec, r, samples_per_round, obs_spec,noise_spec,n
         xscaler = do_nothing()
         
     if rem_mean:
-        rem_mean=rm_mean()
+        rem_mean=rm_mean(args,nwvl)
     else:
         rem_mean=do_nothing()
     
