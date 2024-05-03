@@ -301,33 +301,33 @@ while r<num_rounds:
         ##### CHECK IF ALL MODELS WERE COMPUTED AND COMPUTE REMAINING IF NOT
         sm = np.sum(arcis_spec[r], axis=1)
 
-        arcis_spec[r] = arcis_spec[r][sm>=0]
-        np_theta[r] = np_theta[r][sm>=0]
+#         arcis_spec[r] = arcis_spec[r][sm>=0]
+#         np_theta[r] = np_theta[r][sm>=0]
         
-        # print(sm)
+#         # print(sm)
 
-        crash_count=0    
-        while len(arcis_spec[r])<samples_per_round:
-            crash_count+=1
-            print('Crash ',str(crash_count))
-            remain = samples_per_round-len(arcis_spec[r])
-            print('ARCiS crashed, computing remaining ' +str(remain)+' models.')
-            logging.info('ARCiS crashed, computing remaining ' +str(remain)+' models.')
+#         crash_count=0    
+#         while len(arcis_spec[r])<samples_per_round:
+#             crash_count+=1
+#             print('Crash ',str(crash_count))
+#             remain = samples_per_round-len(arcis_spec[r])
+#             print('ARCiS crashed, computing remaining ' +str(remain)+' models.')
+#             logging.info('ARCiS crashed, computing remaining ' +str(remain)+' models.')
 
-            theta_ac = proposal.sample((remain,))
-            np_theta_ac = theta_ac.cpu().detach().numpy().reshape([-1, len(prior_bounds)])
+#             theta_ac = proposal.sample((remain,))
+#             np_theta_ac = theta_ac.cpu().detach().numpy().reshape([-1, len(prior_bounds)])
             
-            if args.ynorm:
-                params_ac=yscaler.inverse_transform(np_theta_ac)
-            else:
-                params_ac = np_theta_ac
+#             if args.ynorm:
+#                 params_ac=yscaler.inverse_transform(np_theta_ac)
+#             else:
+#                 params_ac = np_theta_ac
 
-            arcis_spec_ac=compute(params_ac, args.processes, args.output,args.input, args.input2, args.n_global, which,  args.ynorm, r, nr, obs, obs_spec,nwvl,args)
+#             arcis_spec_ac=compute(params_ac, args.processes, args.output,args.input, args.input2, args.n_global, which,  args.ynorm, r, nr, obs, obs_spec,nwvl,args)
 
-            sm_ac = np.sum(arcis_spec_ac, axis=1)
+#             sm_ac = np.sum(arcis_spec_ac, axis=1)
 
-            arcis_spec[r] = np.concatenate((arcis_spec[r], arcis_spec_ac[sm_ac>=0]))
-            np_theta[r] = np.concatenate((np_theta[r], np_theta_ac[sm_ac>=0]))
+#             arcis_spec[r] = np.concatenate((arcis_spec[r], arcis_spec_ac[sm_ac>=0]))
+#             np_theta[r] = np.concatenate((np_theta[r], np_theta_ac[sm_ac>=0]))
             
         model_time.append(time()-tic_compute)  
         logging.info('Time elapsed: '+ str(time()-tic_compute))
