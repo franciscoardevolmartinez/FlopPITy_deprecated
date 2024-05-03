@@ -216,6 +216,8 @@ class rm_mean():
         for i in trange(len(arcis_spec)):
             if self.eps:
                 xbar=np.mean(arcis_spec[i][int(sum(self.nwvl[:0])):int(sum(self.nwvl[:0+1]))])
+            else:
+                xbar=np.mean(arcis_spec[i])
             normed[i][:-1] = arcis_spec[i]-xbar
             normed[i][-1] = xbar
     

@@ -23,6 +23,7 @@ from floppityFUN import *
 from simulator import *
 
 supertic = time()
+version = 1
 
 ### PARSE COMMAND LINE ARGUMENTS ###
 def parse_args():
@@ -93,8 +94,8 @@ logs.mkdir(parents=False, exist_ok=True)
 logging.basicConfig(filename=args.output+'/log.log', filemode='a', format='%(asctime)s %(message)s', 
                 datefmt='%H:%M:%S', level=logging.DEBUG)
 
-logging.info('Initializing...')
-print('Initializing...')
+logging.info(f'FlopPITy v{version}')
+print(f'FlopPITy v{version}')
 
 logging.info('Command line arguments: '+ str(args))
 print('Command line arguments: '+ str(args))
