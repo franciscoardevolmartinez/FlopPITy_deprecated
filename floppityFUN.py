@@ -214,10 +214,10 @@ class rm_mean():
         logging.info('Removing the mean')
         print('Removing the mean')
         for i in trange(len(arcis_spec)):
-            if self.eps:
-                xbar=np.mean(arcis_spec[i][int(sum(self.nwvl[:0])):int(sum(self.nwvl[:0+1]))])
-            else:
-                xbar=np.mean(arcis_spec[i])
+            # if self.eps:
+            #     xbar=np.mean(arcis_spec[i][int(sum(self.nwvl[:0])):int(sum(self.nwvl[:0+1]))])
+            # else:
+            xbar=np.mean(arcis_spec[i])
             normed[i][:-1] = arcis_spec[i]-xbar
             normed[i][-1] = xbar
     
@@ -268,9 +268,9 @@ def compute(params, nprocesses, output, arginput, arginput2, n_global, which, yn
     arcis_spec = np.concatenate(arcis_specs)
     for j in range(nprocesses):
         os.system('mv '+output + '/round_'+str(r)+str(j)+'_out/log.dat '+output +'/ARCiS_logs/log_'+str(r)+str(j)+'.dat')
-        # os.system('rm -rf '+output + '/round_'+str(r)+str(j)+'_out/')
-        # os.system('rm -rf '+output + '/round_'+str(r)+str(j)+'_limb2_out/')
-        # os.system('rm -rf '+output + '/round_'+str(r)+str(j)+'_samples.dat')
+        os.system('rm -rf '+output + '/round_'+str(r)+str(j)+'_out/')
+        os.system('rm -rf '+output + '/round_'+str(r)+str(j)+'_limb2_out/')
+        os.system('rm -rf '+output + '/round_'+str(r)+str(j)+'_samples.dat')
 # print('Tim/fo(('Time elapsed: ', time()-tic))
     
     return arcis_spec
