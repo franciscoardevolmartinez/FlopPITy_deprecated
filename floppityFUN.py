@@ -259,7 +259,7 @@ def compute(params, nprocesses, output, arginput, arginput2, n_global, which, yn
 
     # tic=time()
     print('Running ARCiS')
-    print(f'Computing {samples_per_process} models per process')
+    print(f'Computing {samples_per_process[0]} models per process')
     logging.info('Running ARCiS')
     # logging.info('Computing '+str(samples_per_process[0])+' models per process ')
     with Pool(processes = nprocesses) as pool:

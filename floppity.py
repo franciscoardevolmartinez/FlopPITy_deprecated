@@ -23,7 +23,7 @@ from floppityFUN import *
 from simulator import *
 
 supertic = time()
-version = '1.1.1'
+version = '1.1.2'
 
 ### PARSE COMMAND LINE ARGUMENTS ###
 def parse_args():
@@ -484,6 +484,9 @@ while r<num_rounds:
 
     if args.ynorm:
         MAP = yscaler.inverse_transform(MAP.reshape(1,-1))[0]
+    
+    with open(f'{args.output}/map_params.npy', 'wb') as map_params_file:
+        np.save(map_param_files, MAP)
 
     os.system(f'cp {args.output}/input_ARCiS.dat {args.output}/map.dat')
 
