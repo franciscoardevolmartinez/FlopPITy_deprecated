@@ -23,7 +23,7 @@ from floppityFUN import *
 from simulator import *
 
 supertic = time()
-version = '1.1'
+version = '1.1.1'
 
 ### PARSE COMMAND LINE ARGUMENTS ###
 def parse_args():

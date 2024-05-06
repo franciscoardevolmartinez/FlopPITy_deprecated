@@ -356,7 +356,7 @@ def simulator(fparameters, directory, r, input_file, input2_file, n_global, whic
                 # delta=8e-4
                 
                 # if abs(eps)<delta:
-                offset[i][j-1]=eps0-eps
+                offset[i][j-1]=eps-eps0
                 #     offset[i][j-1]=eps
                 # else:
                 #     offset[i][j-1]=delta
