@@ -23,7 +23,7 @@ from floppityFUN import *
 from simulator import *
 
 supertic = time()
-version = '1.1.3'
+version = '1.1.4'
 
 ### PARSE COMMAND LINE ARGUMENTS ###
 def parse_args():
@@ -70,7 +70,7 @@ def parse_args():
     # parser.add_argument('-dont_reject', action='store_false')
     parser.add_argument('-npew', type=int, default=5000)
     parser.add_argument('-fit_offset', action='store_true')
-    parser.add_argument('-prior_offset', type=str)
+    parser.add_argument('-max_offset', type=float)
     return parser.parse_args()
 
 args = parse_args()
