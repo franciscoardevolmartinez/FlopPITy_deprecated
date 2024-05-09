@@ -128,7 +128,7 @@ parnames, prior_bounds, obs, obs_spec, noise_spec, nr, which, init2, nwvl, log =
 
 #######  REMOVE MEAN? Useful for transmission spectra
 if args.rem_mean:
-    rem_mean=rm_mean(args, nwvl)
+    rem_mean=rm_mean()
 else:
     rem_mean=do_nothing()
 
@@ -141,7 +141,11 @@ if args.embedding:
     elif args.embedding_type=='CNN':
         print('Using a convolutional embedding network.')
         num_conv_layers, out_channels_per_layer, num_linear_layers, num_linear_units, kernel_size, output_dims = unroll_embed_hypers(args.embed_hypers, args.embed_size)
-        summary = CNNEmbedding(input_shape=(obs_spec.shape[0],), out_channels_per_layer=out_channels_per_layer, num_conv_layers=num_conv_layers, kernel_size=kernel_size,
+        if args.rem_mean:
+            summary = CNNEmbedding(input_shape=(obs_spec.shape[0]+1,), out_channels_per_layer=out_channels_per_layer, num_conv_layers=num_conv_layers, kernel_size=kernel_size,
+                               num_linear_layers=num_linear_layers, num_linear_units=num_linear_units, output_dim=output_dims[0])
+        else:
+            summary = CNNEmbedding(input_shape=(obs_spec.shape[0],), out_channels_per_layer=out_channels_per_layer, num_conv_layers=num_conv_layers, kernel_size=kernel_size,
                                num_linear_layers=num_linear_layers, num_linear_units=num_linear_units, output_dim=output_dims[0])
     elif args.embedding_type=='multi':
         print('Using multiple embedding networks.')

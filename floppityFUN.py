@@ -204,9 +204,7 @@ class do_nothing():
         return data
     
 class rm_mean():
-    def __init__(self, args, nwvl):
-        self.eps=args.fit_offset
-        self.nwvl=nwvl
+    def __init__(self):
         return
         
     def transform(self, arcis_spec):
@@ -214,9 +212,6 @@ class rm_mean():
         logging.info('Removing the mean')
         print('Removing the mean')
         for i in trange(len(arcis_spec)):
-            # if self.eps:
-            #     xbar=np.mean(arcis_spec[i][int(sum(self.nwvl[:0])):int(sum(self.nwvl[:0+1]))])
-            # else:
             xbar=np.mean(arcis_spec[i])
             normed[i][:-1] = arcis_spec[i]-xbar
             normed[i][-1] = xbar
@@ -334,7 +329,7 @@ def preprocess(np_theta, arcis_spec, r, samples_per_round, obs_spec,noise_spec,n
         xscaler = do_nothing()
         
     if rem_mean:
-        rem_mean=rm_mean(args,nwvl)
+        rem_mean=rm_mean()
     else:
         rem_mean=do_nothing()
     
