@@ -348,7 +348,6 @@ def simulator(fparameters, directory, r, input_file, input2_file, n_global, whic
             
             # Find the offset between the fixed observation and the spectrum
             eps0 = scale(transobs[int(sum(nwvl[:0])):int(sum(nwvl[:0+1]))], arcis_spec[i][int(sum(nwvl[:0])):int(sum(nwvl[:0+1]))])
-            print
             # arcis_spec[i]+=eps0
             
             for j in range(1,n_obs):
@@ -357,11 +356,11 @@ def simulator(fparameters, directory, r, input_file, input2_file, n_global, whic
                 # delta=8e-4
                 
                 # 
-                delta=eps-eps0
+                delta=eps #-eps0
                 if abs(delta)<args.max_offset:
                     offset[i][j-1]=delta
                 else:
-                    offset[i][j-1]=np.sign(delta)*args.max_offset
+                    offset[i][j-1]=args.max_offset
                     
                 arcis_spec[i][int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))] += offset[i][j-1]
     
