@@ -23,7 +23,7 @@ from floppityFUN import *
 from simulator import *
 
 supertic = time()
-version = '1.1.8'
+version = '1.1.9'
 
 ### PARSE COMMAND LINE ARGUMENTS ###
 def parse_args():
@@ -142,7 +142,7 @@ if args.embedding:
         print('Using a convolutional embedding network.')
         num_conv_layers, out_channels_per_layer, num_linear_layers, num_linear_units, kernel_size, output_dims = unroll_embed_hypers(args.embed_hypers, args.embed_size)
         if args.rem_mean:
-            summary = CNNEmbedding(input_shape=(obs_spec.shape[0]+100,), out_channels_per_layer=out_channels_per_layer, num_conv_layers=num_conv_layers, kernel_size=kernel_size,
+            summary = CNNEmbedding(input_shape=(obs_spec.shape[0]+10,), out_channels_per_layer=out_channels_per_layer, num_conv_layers=num_conv_layers, kernel_size=kernel_size,
                                num_linear_layers=num_linear_layers, num_linear_units=num_linear_units, output_dim=output_dims[0])
         else:
             summary = CNNEmbedding(input_shape=(obs_spec.shape[0],), out_channels_per_layer=out_channels_per_layer, num_conv_layers=num_conv_layers, kernel_size=kernel_size,

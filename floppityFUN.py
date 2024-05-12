@@ -208,23 +208,23 @@ class rm_mean():
         return
         
     def transform(self, arcis_spec):
-        normed = np.empty([arcis_spec.shape[0],arcis_spec.shape[1]+100])
+        normed = np.empty([arcis_spec.shape[0],arcis_spec.shape[1]+10])
         logging.info('Removing the mean')
         print('Removing the mean')
         for i in trange(len(arcis_spec)):
-            xbar=np.mean(arcis_spec[i])
-            normed[i][:-100] = arcis_spec[i]-xbar
-            normed[i][-100:] = xbar*np.ones(100)
+            xbar=np.median(arcis_spec[i])
+            normed[i][:-10] = arcis_spec[i]-xbar
+            normed[i][-10:] = xbar*np.ones(10)
     
         return normed
     
     def inverse_transform(self, normed):
-        arcis_spec = np.empty([normed.shape[0],normed.shape[1]-100])
+        arcis_spec = np.empty([normed.shape[0],normed.shape[1]-10])
         logging.info('Adding back the mean')
         print('Adding back the mean')
         for i in trange(len(normed)):
             xbar=normed[i][-1]
-            arcis_spec[i] = normed[i][:-100]+xbar
+            arcis_spec[i] = normed[i][:-10]+xbar
     
         return arcis_spec
 
