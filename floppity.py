@@ -70,7 +70,7 @@ def parse_args():
     # parser.add_argument('-dont_reject', action='store_false')
     parser.add_argument('-npew', type=int, default=5000)
     parser.add_argument('-fit_offset', action='store_true')
-    parser.add_argument('-max_offset', type=float)
+    parser.add_argument('-max_offset', type=float, default=1e-2)
     return parser.parse_args()
 
 args = parse_args()
