@@ -202,6 +202,9 @@ repeat=0
 model_time=[]
 train_time=[]
 
+n_eff=[]
+w_i=[]
+
 
 ##### LOAD FILES IF RESUMING
 if args.resume:
@@ -292,6 +295,7 @@ while r<num_rounds:
             params=yscaler.inverse_transform(np_theta[r])
         else:
             params = np_theta[r]  #### QUICK FIX, MAKE IT GOOD!!!
+            
         
         ##### COMPUTE MODELS
         tic_compute=time()
@@ -336,6 +340,43 @@ while r<num_rounds:
         model_time.append(time()-tic_compute)  
         logging.info('Time elapsed: '+ str(time()-tic_compute))
         print('Time elapsed: ', time()-tic_compute)
+        
+        
+    #######################################
+    ######    Importance sampling    ######
+    #######################################
+    
+        L = np.empty(samples_per_round)
+        for j in range(samples_per_round):
+            L[j] = likelihood(obs_spec, noise_spec, arcis_spec[r][j])
+            
+        log_w = L + prior.log_prob(torch.tensor(np_theta[r])).detach().numpy() - proposal.log_prob(torch.tensor(np_theta[r])).detach().numpy()
+        
+        print(log_w)
+        
+        w_i.append(10**(log_w))
+        print(w_i[r])
+        w_i[r]=np.nan_to_num(w_i[r])
+        print(w_i[r])
+        
+        Sw = sum(w_i[r])
+        print(Sw)
+        if Sw==0:
+            w_i[r]=np.ones(samples_per_round)
+        else:
+            w_i[r]/=Sw
+        print(w_i[r])
+        
+        n_eff.append(1/(sum(w_i[r]**2)) - 1) ##n_eff should be as close to 1 as possible)
+        
+        print('n_eff', n_eff[r])
+                     
+        # if n_eff decreases, we should stop
+        
+        if r>1 and n_eff[r]<n_eff[r-1]:
+            print('___THE END___')
+            break
+        
 
     theta_aug, x, xscaler, pca = preprocess(np_theta[r], arcis_spec[r], r, samples_per_round, obs_spec, noise_spec, args.naug, args.do_pca, args.n_pca, args.xnorm, nwvl,
                                             args.rem_mean, args.output, args.device, args)
@@ -492,9 +533,9 @@ while r<num_rounds:
     with open(f'{args.output}/map_params.npy', 'wb') as map_params_file:
         np.save(map_params_file, MAP)
 
-    os.system(f'cp {args.output}/input_ARCiS.dat {args.output}/map.dat')
+    os.system(f'cp {args.output}/input_ARCiS.dat {args.output}/input_map.dat')
 
-    with open(f'{args.output}/map.dat', 'a') as mapfile:
+    with open(f'{args.output}/input_map.dat', 'a') as mapfile:
         mapfile.write(f'\n')
         mapfile.write(f'******** MAP parameters ********\n')
         mapfile.write(f'\n')

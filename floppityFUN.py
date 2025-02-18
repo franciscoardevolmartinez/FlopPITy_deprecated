@@ -26,8 +26,6 @@ def likelihood(obs, err, x):
         L += -np.log(np.sqrt(2*np.pi)*err[i]) + (-(obs[i]-x[i])**2/(2*err[i]**2))
     return L
 
-
-
 def evidence(posterior, prior, samples, Y, obs, err, do_pca, xnorm, rem_mean, xscaler, pca):
     L = np.empty(len(samples))
     for j in range(len(samples)):
@@ -66,6 +64,11 @@ def evidence_w_all(posterior, prior, samples, Y, obs, err, do_pca, xnorm):
     logZ[2] = np.percentile(-(P-pi-L), 84)
     logZ[1] = np.percentile(-(P-pi-L), 16)
     return logZ
+
+# def IS(obs, err, x, prior, q):
+    
+
+#     return w_i, neff
 
 def unroll_embed_hypers(embed_hypers, embed_size):
     output_dims=embed_size.split(',')
@@ -208,23 +211,23 @@ class rm_mean():
         return
         
     def transform(self, arcis_spec):
-        normed = np.empty([arcis_spec.shape[0],arcis_spec.shape[1]+10])
+        normed = np.empty([arcis_spec.shape[0],arcis_spec.shape[1]+1])
         logging.info('Removing the mean')
         print('Removing the mean')
         for i in trange(len(arcis_spec)):
-            xbar=np.median(arcis_spec[i])
-            normed[i][:-10] = arcis_spec[i]-xbar
-            normed[i][-10:] = xbar*np.ones(10)
+            xbar=np.mean(arcis_spec[i])
+            normed[i][:-1] = arcis_spec[i]-xbar
+            normed[i][-1] = xbar
     
         return normed
     
     def inverse_transform(self, normed):
-        arcis_spec = np.empty([normed.shape[0],normed.shape[1]-10])
+        arcis_spec = np.empty([normed.shape[0],normed.shape[1]-1])
         logging.info('Adding back the mean')
         print('Adding back the mean')
         for i in trange(len(normed)):
             xbar=normed[i][-1]
-            arcis_spec[i] = normed[i][:-10]+xbar
+            arcis_spec[i] = normed[i]+xbar
     
         return arcis_spec
 
