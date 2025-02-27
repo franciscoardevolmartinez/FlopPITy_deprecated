@@ -13,6 +13,7 @@ from sbi.utils.get_nn_models import posterior_nn
 from time import time
 import logging
 import os
+from scipy.stats.qmc import Sobol
 logging.getLogger('matplotlib').setLevel(logging.WARNING)
 import matplotlib.pyplot as plt
 from corner import corner
@@ -21,9 +22,10 @@ from sbi.inference import MCMCPosterior, RejectionPosterior, ImportanceSamplingP
 from sbi.inference import DirectPosterior, likelihood_estimator_based_potential, posterior_estimator_based_potential
 from floppityFUN import *
 from simulator import *
+from modules import *
 
 supertic = time()
-version = '1.1.9'
+version = '2.a'
 
 ### PARSE COMMAND LINE ARGUMENTS ###
 def parse_args():
@@ -70,7 +72,7 @@ def parse_args():
     # parser.add_argument('-dont_reject', action='store_false')
     parser.add_argument('-npew', type=int, default=5000)
     parser.add_argument('-fit_offset', action='store_true')
-    parser.add_argument('-max_offset', type=float)
+    parser.add_argument('-max_offset', type=float, default=1e-2)
     return parser.parse_args()
 
 args = parse_args()
@@ -103,6 +105,8 @@ print('Command line arguments: '+ str(args))
 
 
 ##### READ ARCiS INPUT FILE
+#read_input(args.input, args.output)
+
 os.system('cp '+args.input + ' '+args.output+'/input_'+args.forward+'.dat')
 if args.input2!='aintnothinhere':
     os.system('cp '+args.input2 + ' '+args.output+'/input2_'+args.forward+'.dat')
@@ -111,9 +115,9 @@ args.input = args.output+'/input_'+args.forward+'.dat'
 if args.input2!='aintnothinhere':
     args.input2 = args.output+'/input2_'+args.forward+'.dat'
 
-
-
 parnames, prior_bounds, obs, obs_spec, noise_spec, nr, which, init2, nwvl, log = read_input(args)
+
+
 #####################
 
 ##### READ INPUT FILE
@@ -160,6 +164,9 @@ else:
 
 
 ##### PRIOR 
+
+#prior = create_prior(prior_bounds, args.ynorm)
+
 if args.ynorm:
     yscaler = Normalizer(prior_bounds)
     with open(args.output+'/yscaler.p', 'wb') as file_yscaler:
@@ -178,17 +185,23 @@ num_rounds = args.num_rounds
 samples_per_round = args.samples_per_round
 
 if args.custom_nsf:
-    density_estimator_build_fun = posterior_nn(model="nsf", num_transforms=args.transforms, hidden_features=args.hidden, num_bins=args.bins, embedding_net=summary, num_blocks=args.blocks)
+    density_estimator_build_fun = posterior_nn(model="nsf", num_transforms=args.transforms, hidden_features=args.hidden, num_bins=args.bins, embedding_net=summary, num_blocks=args.blocks, dropout_probability=args.dropout)
     inference = SNPE_C(prior = prior, density_estimator=density_estimator_build_fun, device=args.device)
 else:
     inference = SNPE_C(prior = prior, density_estimator='nsf', device=args.device)
 
 proposal=prior
+
+##### INITIALIZING LISTS #####
 posteriors=[]
 
 samples=[]
 
 logZs = []
+
+w_is = []
+
+neffs = []
 
 good_rounds=[]
 
@@ -201,9 +214,6 @@ repeat=0
 
 model_time=[]
 train_time=[]
-
-n_eff=[]
-w_i=[]
 
 
 ##### LOAD FILES IF RESUMING
@@ -266,8 +276,19 @@ while r<num_rounds:
         ##### DRAW SAMPLES
         logging.info('Drawing '+str(samples_per_round)+' samples')
         print('Samples per round: ', samples_per_round)
-        theta = proposal.sample((samples_per_round,))
-        np_theta[r] = theta.cpu().detach().numpy().reshape([-1, len(prior_bounds)])
+        if r>0:
+            theta = proposal.sample((samples_per_round,))
+            np_theta[r] = theta.cpu().detach().numpy().reshape([-1, len(prior_bounds)])
+        elif r==0:
+            # theta = proposal.sample((samples_per_round,))
+            # np_theta[r] = theta.cpu().detach().numpy().reshape([-1, len(prior_bounds)])
+            # dim1=np.linspace(-1, 1, int(samples_per_round**(1/len(prior_bounds))))
+            # dim2=np.linspace(-1, 1, int(samples_per_round**(1/len(prior_bounds))))
+            # xx,yy = np.meshgrid(dim1, dim2)
+            # np_theta[r]=np.array((xx.ravel(), yy.ravel())).T
+            np_theta[r] = -1+2*Sobol(len(prior_bounds)).random_base2(int(np.log2(samples_per_round)))
+        else:
+            print('This shouldn\'t happen wtf')
         
         if args.input2!='aintnothinhere':
             for i in range(samples_per_round):
@@ -295,7 +316,6 @@ while r<num_rounds:
             params=yscaler.inverse_transform(np_theta[r])
         else:
             params = np_theta[r]  #### QUICK FIX, MAKE IT GOOD!!!
-            
         
         ##### COMPUTE MODELS
         tic_compute=time()
@@ -340,43 +360,6 @@ while r<num_rounds:
         model_time.append(time()-tic_compute)  
         logging.info('Time elapsed: '+ str(time()-tic_compute))
         print('Time elapsed: ', time()-tic_compute)
-        
-        
-    #######################################
-    ######    Importance sampling    ######
-    #######################################
-    
-        L = np.empty(samples_per_round)
-        for j in range(samples_per_round):
-            L[j] = likelihood(obs_spec, noise_spec, arcis_spec[r][j])
-            
-        log_w = L + prior.log_prob(torch.tensor(np_theta[r])).detach().numpy() - proposal.log_prob(torch.tensor(np_theta[r])).detach().numpy()
-        
-        print(log_w)
-        
-        w_i.append(10**(log_w))
-        print(w_i[r])
-        w_i[r]=np.nan_to_num(w_i[r])
-        print(w_i[r])
-        
-        Sw = sum(w_i[r])
-        print(Sw)
-        if Sw==0:
-            w_i[r]=np.ones(samples_per_round)
-        else:
-            w_i[r]/=Sw
-        print(w_i[r])
-        
-        n_eff.append(1/(sum(w_i[r]**2)) - 1) ##n_eff should be as close to 1 as possible)
-        
-        print('n_eff', n_eff[r])
-                     
-        # if n_eff decreases, we should stop
-        
-        if r>1 and n_eff[r]<n_eff[r-1]:
-            print('___THE END___')
-            break
-        
 
     theta_aug, x, xscaler, pca = preprocess(np_theta[r], arcis_spec[r], r, samples_per_round, obs_spec, noise_spec, args.naug, args.do_pca, args.n_pca, args.xnorm, nwvl,
                                             args.rem_mean, args.output, args.device, args)
@@ -391,6 +374,38 @@ while r<num_rounds:
         logging.info('ln (Z) = '+ str(round(logZ[0], 2))+' ('+str(round(logZ[1],2))+', '+str(round(logZ[2],2))+')')
         print('\n')
         logZs.append(logZ)
+        
+        
+    ###### Importance sampling and evidence 
+    if r>0:
+        w_i, eff = IS(posteriors[-1], obs_spec, noise_spec, arcis_spec[r], np_theta[r])
+
+        logZ_is, logZ_err_is = evidence_from_IS(w_i, eff)
+
+        print('IS efficiency: ' + str(np.round(eff, 3)))
+        print('ln (Z) = '+ str(round(logZ_is, 2))+' +- '+str(round(logZ_err_is,2)))
+        logging.info('IS efficiency: ' + str(np.round(eff, 3)))
+        logging.info('ln (Z) = '+ str(round(logZ_is, 2))+' +- '+str(round(logZ_err_is,2)))
+        w_is.append(w_i)
+        neffs.append(eff)
+        
+    
+    ##### Reject round if efficiency doesnt improve
+    '''
+    This should go smth like:
+    
+    while round<n_rounds:
+    
+        sample()
+        compute_models()
+        
+        new_eff=0
+        n_repeat=0
+        while new_eff<old_eff and n_repeat<max_repeat:
+            train(round)
+          
+    '''
+
     
     '''
     ###### REJECT ROUND IF NECESSARY
@@ -417,6 +432,14 @@ while r<num_rounds:
             print('Saving evidence...')
             logging.info('Saving evidence...')
             pickle.dump(logZs, file_evidence)
+        with open(args.output+'/importance_weights.p', 'wb') as file_w_is:
+            print('Saving importance weights...')
+            logging.info('Saving importance weights...')
+            pickle.dump(w_is, file_w_is)
+        with open(args.output+'/importance_effs.p', 'wb') as file_neffs:
+            print('Saving importance efficiencies...')
+            logging.info('Saving importance efficiencies...')
+            pickle.dump(neffs, file_neffs)
     '''
         print('Preprocessing data...')
         logging.info('Preprocessing data...')
@@ -502,6 +525,13 @@ while r<num_rounds:
 #         KL = kl_divergence(p,q, log_prob=True)
 
 #         print('KL divergence:', KL)
+
+#     w_i, eff = IS(posteriors[-1], obs_spec, noise_spec, arcis_spec[r], np_theta[r])
+    
+#     logZ_is, logZ_err_is = evidence_from_IS(w_i, eff)
+    
+#     print('IS efficiency: ' + str(np.round(eff, 3)))
+#     print('ln (Z) = '+ str(round(logZ_is, 2))+' +- '+str(round(logZ_err_is,2)))
 
 
     ### DRAW npew SAMPLES (JUST FOR PLOTTING)
