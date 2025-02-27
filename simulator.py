@@ -32,6 +32,14 @@ def scale(obs, model):
 
 def read_input(args):
     
+    os.system('cp '+args.input + ' '+args.output+'/input.dat')
+    if args.input2!='aintnothinhere':
+        os.system('cp '+args.input2 + ' '+args.output+'/input2.dat')
+
+    args.input = args.output+'/input.dat'
+    if args.input2!='aintnothinhere':
+        args.input2 = args.output+'/input2.dat'
+    
     inp = []
     with open(args.input, 'rb') as arcis_input:
         for lines in arcis_input:

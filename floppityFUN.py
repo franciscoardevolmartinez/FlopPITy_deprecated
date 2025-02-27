@@ -69,7 +69,7 @@ def IS(q, obs, err, x, Y):
     log_L = -np.inf*np.ones(len(x))
     for i in range(len(x)):
         log_L[i] = likelihood(obs, err, x[i])
-    log_q = q.log_prob(torch.tensor(Y)).detach().numpy()
+    log_q = q.log_prob(torch.tensor(Y).float()).detach().numpy()
     
     log_w = log_L - log_q
     
@@ -174,7 +174,7 @@ def post2txt(post, parnames, prior_bounds, nbins=20, a=33, b=67):
     
 ### Parameter transformer
 class Normalizer():
-    def __init__(self, prior_bounds, lims=1):
+    def __init__(self, prior_bounds, lims):
         self.bounds = prior_bounds
         self.lims = lims
         
@@ -252,8 +252,12 @@ class rm_mean():
         return arcis_spec
 
 ### COMPUTE FORWARD MODELS FROM NORMALISED PARAMETERS
-def compute(params, nprocesses, output, arginput, arginput2, n_global, which, ynorm, r, nr, obs, obs_spec,nwvl,args):
+def compute(np_theta, nprocesses, output, arginput, arginput2, n_global, which, ynorm, yscaler, r, nr, obs, obs_spec,nwvl,args):
     
+    if args.ynorm:
+        params=yscaler.inverse_transform(np_theta)
+    else:
+        params = np_theta
     
     samples_per_process = len(params)//nprocesses*np.ones(nprocesses, dtype=int)
     rem = int(len(params)-sum(samples_per_process))
