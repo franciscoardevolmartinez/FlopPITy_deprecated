@@ -24,7 +24,7 @@ from simulator import *
 from modules import *
 
 supertic = time()
-version = '2.a'
+version = '2.b'
 
 ### PARSE COMMAND LINE ARGUMENTS ###
 def parse_args():
@@ -211,7 +211,7 @@ while r<num_rounds:
     
     nrepeat=0
     
-    while new_eff < old_neff and nrepeat<args.max_reject:
+    while new_eff < 1.05*old_neff and nrepeat<args.max_reject:
         add_log('Training round '+str(r)+'. Attempt '+str(nrepeat)+'.')
         
         current_inference_object = inference_object
