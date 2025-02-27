@@ -211,7 +211,7 @@ while r<num_rounds:
     
     nrepeat=0
     
-    while new_eff < 1.05*old_neff and nrepeat<args.max_reject:
+    while new_eff < 0.95*old_neff and nrepeat<args.max_reject:
         add_log('Training round '+str(r)+'. Attempt '+str(nrepeat)+'.')
         
         current_inference_object = inference_object
