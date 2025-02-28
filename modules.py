@@ -155,7 +155,7 @@ def input_MAP(proposal, ynorm, yscaler, output, parnames, log):
     with open(f'{output}/map_params.npy', 'wb') as map_params_file:
         np.save(map_params_file, MAP)
 
-    os.system(f'cp {output}/input_ARCiS.dat {output}/input_map.dat')
+    os.system(f'cp {output}/input.dat {output}/input_map.dat')
 
     with open(f'{output}/input_map.dat', 'a') as mapfile:
         mapfile.write(f'\n')

@@ -24,7 +24,7 @@ from simulator import *
 from modules import *
 
 supertic = time()
-version = '2.b'
+version = '2.c'
 
 ### PARSE COMMAND LINE ARGUMENTS ###
 def parse_args():
@@ -172,6 +172,9 @@ while r<num_rounds:
         np_theta[r] = pickle.load(open(args.prior_dir+'/Y.p', 'rb'))[0][:samples_per_round]
     else:
         
+        ##### GENERATE TRAINING EXAMPLES
+        
+        
         ##### DRAW SAMPLES (θ)
         
         np_theta[r] = sample_proposal(r, proposal, samples_per_round, prior_bounds, args.tail_bound, args.input2, 
@@ -200,40 +203,45 @@ while r<num_rounds:
         
         
     ### COMPUTE IS efficiency
-    
-    inference_object = inference.append_simulations(theta_aug, x, proposal=proposal)
-    
     if r>0:
-        old_neff=neffs[-1]
-    else:
-        old_neff=0
-    new_eff = -1
-    
-    nrepeat=0
-    
-    while new_eff < 0.95*old_neff and nrepeat<args.max_reject:
-        add_log('Training round '+str(r)+'. Attempt '+str(nrepeat)+'.')
-        
-        current_inference_object = inference_object
-        posterior_estimator = current_inference_object.train(show_train_summary=True, stop_after_epochs=args.patience,
-                                                             num_atoms=args.atoms,force_first_round_loss=True,
-                                                             retrain_from_scratch=args.retrain_from_scratch, use_combined_loss=True) 
-        
-        default_x = xscaler.transform(pca.transform(rem_mean.transform(obs_spec.reshape(1,-1))))
-        
-        posterior = current_inference_object.build_posterior(posterior_estimator).set_default_x(default_x)
-        
-        w_i, eff = IS(posterior, obs_spec, noise_spec, arcis_spec[r], np_theta[r])
+        w_i, eff = IS(posteriors[-1], obs_spec, noise_spec, arcis_spec[r], np_theta[r])
         logZ_is, logZ_err_is = evidence_from_IS(w_i, eff)
-        
+
         add_log('IS efficiency: ' + str(np.round(eff, 3)))
         add_log('ln (Z) = '+ str(round(logZ_is, 2))+' +- '+str(round(logZ_err_is,2)))
+    
+        w_is.append(w_i)
+        neffs.append(eff)
+    
+    
+    ##### TRAIN NSF
+    inference_object = inference.append_simulations(theta_aug, x, proposal=proposal)
+    
+#     if r>0:
+#         old_neff=neffs[-1]
+#     else:
+#         old_neff=0
+#     new_eff = -1
+    
+#     nrepeat=0
+    
+    # while r>0 new_eff < old_neff and nrepeat<args.max_reject:
+        # add_log('Training round '+str(r)+'. Attempt '+str(nrepeat)+'.')
         
-        new_eff = eff
-        nrepeat+=1
+    current_inference_object = inference_object
+    posterior_estimator = current_inference_object.train(show_train_summary=True, stop_after_epochs=args.patience,
+                                                         num_atoms=args.atoms,force_first_round_loss=True,
+                                                         retrain_from_scratch=args.retrain_from_scratch, use_combined_loss=True) 
+
+    default_x = xscaler.transform(pca.transform(rem_mean.transform(obs_spec.reshape(1,-1))))
+
+    posterior = current_inference_object.build_posterior(posterior_estimator).set_default_x(default_x)
         
-    w_is.append(w_i)
-    neffs.append(eff)
+        # new_eff = eff
+        # nrepeat+=1
+        
+        
+    
     posteriors.append(posterior)
     inference_object=current_inference_object
     proposal = posterior
@@ -286,10 +294,10 @@ while r<num_rounds:
         os.system(f'rm -rf {args.output}/offsets_round_{r}_{j}.dat')
         os.system(f'rm -rf {args.output}/T_round_{r}{j}.npy')
     
-    if nrepeat==args.max_reject:
-        r=num_rounds
-    else:
-        r+=1
+    # if nrepeat==args.max_reject:
+    #     r=num_rounds
+    # else:
+    r+=1
     
 add_log('Inference ended.')
 
