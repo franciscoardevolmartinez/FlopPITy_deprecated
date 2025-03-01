@@ -22,10 +22,11 @@ from sbi.inference import DirectPosterior, likelihood_estimator_based_potential,
 from floppityFUN import *
 from simulator import *
 from modules import *
-import git
+import subprocess
 
-repo = git.Repo(search_parent_directories=True)
-version = repo.head.object.hexsha
+os.system('cd MulteXBI; git rev-parse HEAD > MulteXBI/gitversion.txt')
+
+version = np.loadtxt('MulteXBI/gitversion.txt', dtype='str')
 
 ### PARSE COMMAND LINE ARGUMENTS ###
 def parse_args():
@@ -98,7 +99,7 @@ logging.basicConfig(filename=args.output+'/log.log', filemode='a', format='%(asc
 
 
 add_log(f'Running FlopPITy (c)Francisco Ardévol Martínez\n')
-add_log(f'version {version}')
+add_log(f'version {version}\n')
 add_log('Command line arguments: '+ str(args))
 
 
