@@ -24,7 +24,7 @@ from simulator import *
 from modules import *
 import subprocess
 
-os.system('cd MulteXBI; git rev-parse HEAD > MulteXBI/gitversion.txt')
+# os.system('cd MulteXBI; git rev-parse HEAD > MulteXBI/gitversion.txt')
 
 version = np.loadtxt('MulteXBI/gitversion.txt', dtype='str')
 
