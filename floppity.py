@@ -22,9 +22,10 @@ from sbi.inference import DirectPosterior, likelihood_estimator_based_potential,
 from floppityFUN import *
 from simulator import *
 from modules import *
+import git
 
-supertic = time()
-version = '2.c'
+repo = git.Repo(search_parent_directories=True)
+version = repo.head.object.hexsha
 
 ### PARSE COMMAND LINE ARGUMENTS ###
 def parse_args():
@@ -96,7 +97,8 @@ logging.basicConfig(filename=args.output+'/log.log', filemode='a', format='%(asc
                 datefmt='%H:%M:%S', level=logging.DEBUG)
 
 
-add_log(f'FlopPITy v{version}')
+add_log(f'Running FlopPITy (c)Francisco Ardévol Martínez\n')
+add_log(f'version {version}')
 add_log('Command line arguments: '+ str(args))
 
 
@@ -216,17 +218,6 @@ while r<num_rounds:
     
     ##### TRAIN NSF
     inference_object = inference.append_simulations(theta_aug, x, proposal=proposal)
-    
-#     if r>0:
-#         old_neff=neffs[-1]
-#     else:
-#         old_neff=0
-#     new_eff = -1
-    
-#     nrepeat=0
-    
-    # while r>0 new_eff < old_neff and nrepeat<args.max_reject:
-        # add_log('Training round '+str(r)+'. Attempt '+str(nrepeat)+'.')
         
     current_inference_object = inference_object
     posterior_estimator = current_inference_object.train(show_train_summary=True, stop_after_epochs=args.patience,
@@ -236,10 +227,6 @@ while r<num_rounds:
     default_x = xscaler.transform(pca.transform(rem_mean.transform(obs_spec.reshape(1,-1))))
 
     posterior = current_inference_object.build_posterior(posterior_estimator).set_default_x(default_x)
-        
-        # new_eff = eff
-        # nrepeat+=1
-        
         
     
     posteriors.append(posterior)
@@ -293,10 +280,7 @@ while r<num_rounds:
     for j in range(args.processes):
         os.system(f'rm -rf {args.output}/offsets_round_{r}_{j}.dat')
         os.system(f'rm -rf {args.output}/T_round_{r}{j}.npy')
-    
-    # if nrepeat==args.max_reject:
-    #     r=num_rounds
-    # else:
+
     r+=1
     
 add_log('Inference ended.')
