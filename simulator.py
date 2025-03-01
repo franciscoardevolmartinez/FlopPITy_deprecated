@@ -22,7 +22,7 @@ import pickle
 ####     a list with all observation file names, the observation, the noise of the observation and the number of atmospheric layers.
 ####   - One called simulator that returns simulated spectra
 
-def delta(o,m,s):
+def delta(o,m,s):  ### wtf is this???
     return sum((o-m)/s**2)/sum(1/s**2)
 
 def scale(obs, model):
@@ -31,6 +31,14 @@ def scale(obs, model):
 
 
 def read_input(args):
+    
+    os.system('cp '+args.input + ' '+args.output+'/input.dat')
+    if args.input2!='aintnothinhere':
+        os.system('cp '+args.input2 + ' '+args.output+'/input2.dat')
+
+    args.input = args.output+'/input.dat'
+    if args.input2!='aintnothinhere':
+        args.input2 = args.output+'/input2.dat'
     
     inp = []
     with open(args.input, 'rb') as arcis_input:
@@ -220,8 +228,10 @@ def simulator(fparameters, directory, r, input_file, input2_file, n_global, whic
         os.system('cd ; '+ARCiS + ' '+input2_file + ' -o '+directory+'/round_'+str(r)+str(n)+'_limb2_out -s parametergridfile='+fname2)
 
     dirx = directory + '/round_'+str(r)+str(n)+'_out/'
-        
+    
+    print('All is good\n')
     arcis_spec1 = -1*np.ones([parameters.shape[0], size])
+    print('If you\'re seeing this, I\'m not replicating michiels issue\n')    
         
     print('Reading ARCiS output')
     # logging.info('Reading ARCiS output')
@@ -347,22 +357,30 @@ def simulator(fparameters, directory, r, input_file, input2_file, n_global, whic
         for i in range(parameters.shape[0]):
             
             # Find the offset between the fixed observation and the spectrum
-            eps0 = scale(transobs[int(sum(nwvl[:0])):int(sum(nwvl[:0+1]))], arcis_spec[i][int(sum(nwvl[:0])):int(sum(nwvl[:0+1]))])
+            # eps0 = scale(transobs[int(sum(nwvl[:0])):int(sum(nwvl[:0+1]))], arcis_spec[i][int(sum(nwvl[:0])):int(sum(nwvl[:0+1]))])
             # arcis_spec[i]+=eps0
             
             for j in range(1,n_obs):
                 eps = scale(transobs[int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))], arcis_spec[i][int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))]) # Finding optimal scaling
                 # delta=0.5*(max(transobs)-min(transobs))
-                # delta=8e-4
+                delta=8e-4
                 
                 # 
-                delta=eps-eps0
-                if abs(delta)<args.max_offset:
-                    offset[i][j-1]=delta
+                # delta=eps-eps0
+#                 if abs(delta)<args.max_offset:
+#                     offset[i][j-1]=delta
+#                 else:
+#                     offset[i][j-1]=np.sign(delta)*args.max_offset
+                    
+#                 arcis_spec[i][int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))] += offset[i][j-1]
+
+                if abs(eps)<delta:
+                    offset[i][j-1]=eps
                 else:
-                    offset[i][j-1]=np.sign(delta)*args.max_offset
+                    offset[i][j-1]=delta
                     
                 arcis_spec[i][int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))] += offset[i][j-1]
+    
     
     np.savetxt(f'{directory}/offsets_round_{r}_{n}.dat', offset)
     

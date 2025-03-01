@@ -26,8 +26,6 @@ def likelihood(obs, err, x):
         L += -np.log(np.sqrt(2*np.pi)*err[i]) + (-(obs[i]-x[i])**2/(2*err[i]**2))
     return L
 
-
-
 def evidence(posterior, prior, samples, Y, obs, err, do_pca, xnorm, rem_mean, xscaler, pca):
     L = np.empty(len(samples))
     for j in range(len(samples)):
@@ -66,6 +64,30 @@ def evidence_w_all(posterior, prior, samples, Y, obs, err, do_pca, xnorm):
     logZ[2] = np.percentile(-(P-pi-L), 84)
     logZ[1] = np.percentile(-(P-pi-L), 16)
     return logZ
+
+def IS(q, obs, err, x, Y):
+    log_L = -np.inf*np.ones(len(x))
+    for i in range(len(x)):
+        log_L[i] = likelihood(obs, err, x[i])
+    log_q = q.log_prob(torch.tensor(Y).float()).detach().numpy()
+    
+    log_w = log_L - log_q
+    
+    log_w_max = max(log_w)
+    
+    w_i = np.exp(log_w - log_w_max)
+    
+    eff = (1/len(w_i))*(np.sum(w_i))**2/(np.sum(w_i**2))
+
+    return w_i, eff
+
+def evidence_from_IS(w_i, eff):
+    Z = (1/len(w_i))*np.sum(w_i)
+    logZ = np.log(Z)
+    Z_err = np.sqrt((1-eff)/(len(w_i)*eff))
+    logZ_err = Z_err/Z
+    
+    return logZ, logZ_err
 
 def unroll_embed_hypers(embed_hypers, embed_size):
     output_dims=embed_size.split(',')
@@ -152,21 +174,22 @@ def post2txt(post, parnames, prior_bounds, nbins=20, a=33, b=67):
     
 ### Parameter transformer
 class Normalizer():
-    def __init__(self, prior_bounds):
+    def __init__(self, prior_bounds, lims):
         self.bounds = prior_bounds
+        self.lims = lims
         
     def transform(self, Y):
         assert len(self.bounds) == Y.shape[1], 'Dimensionality of prior and parameters doesn\'t match!'
         Yt = np.empty(Y.shape)
         for i in range(Y.shape[1]):
-            Yt[:,i] = 2*(Y[:,i] - self.bounds[i][0])/(self.bounds[i][1] - self.bounds[i][0])-1
+            Yt[:,i] = (2*self.lims)*(Y[:,i] - self.bounds[i][0])/(self.bounds[i][1] - self.bounds[i][0])-self.lims
         return Yt
     
     def inverse_transform(self, Y):
         assert len(self.bounds) == Y.shape[1], 'Dimensionality of prior and parameters doesn\'t match!'
         Yi = np.empty(Y.shape)
         for i in range(Y.shape[1]):
-            Yi[:,i] = (Y[:,i]+1)*(self.bounds[i][1] - self.bounds[i][0])/2 + self.bounds[i][0]
+            Yi[:,i] = (Y[:,i]+self.lims)*(self.bounds[i][1] - self.bounds[i][0])/(2*self.lims) + self.bounds[i][0]
         return Yi
 
 class sigma_res_scale():
@@ -208,29 +231,33 @@ class rm_mean():
         return
         
     def transform(self, arcis_spec):
-        normed = np.empty([arcis_spec.shape[0],arcis_spec.shape[1]+10])
+        normed = np.empty([arcis_spec.shape[0],arcis_spec.shape[1]+1])
         logging.info('Removing the mean')
         print('Removing the mean')
         for i in trange(len(arcis_spec)):
-            xbar=np.median(arcis_spec[i])
-            normed[i][:-10] = arcis_spec[i]-xbar
-            normed[i][-10:] = xbar*np.ones(10)
+            xbar=np.mean(arcis_spec[i])
+            normed[i][:-1] = arcis_spec[i]-xbar
+            normed[i][-1] = xbar
     
         return normed
     
     def inverse_transform(self, normed):
-        arcis_spec = np.empty([normed.shape[0],normed.shape[1]-10])
+        arcis_spec = np.empty([normed.shape[0],normed.shape[1]-1])
         logging.info('Adding back the mean')
         print('Adding back the mean')
         for i in trange(len(normed)):
             xbar=normed[i][-1]
-            arcis_spec[i] = normed[i][:-10]+xbar
+            arcis_spec[i] = normed[i]+xbar
     
         return arcis_spec
 
 ### COMPUTE FORWARD MODELS FROM NORMALISED PARAMETERS
-def compute(params, nprocesses, output, arginput, arginput2, n_global, which, ynorm, r, nr, obs, obs_spec,nwvl,args):
+def compute(np_theta, nprocesses, output, arginput, arginput2, n_global, which, ynorm, yscaler, r, nr, obs, obs_spec,nwvl,args):
     
+    if args.ynorm:
+        params=yscaler.inverse_transform(np_theta)
+    else:
+        params = np_theta
     
     samples_per_process = len(params)//nprocesses*np.ones(nprocesses, dtype=int)
     rem = int(len(params)-sum(samples_per_process))
