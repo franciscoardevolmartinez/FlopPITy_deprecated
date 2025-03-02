@@ -112,38 +112,6 @@ def sample_proposal(r, proposal, samples_per_round, prior_bounds, tail_bound, in
                 np_theta[i,init2] = lT
     
     return np_theta
-                
-#def check_models(): 
-    ##### CHECK IF ALL MODELS WERE COMPUTED AND COMPUTE REMAINING IF NOT
-        # sm = np.sum(arcis_spec[r], axis=1)
-
-#         arcis_spec[r] = arcis_spec[r][sm>=0]
-#         np_theta[r] = np_theta[r][sm>=0]
-        
-#         # print(sm)
-
-#         crash_count=0    
-#         while len(arcis_spec[r])<samples_per_round:
-#             crash_count+=1
-#             print('Crash ',str(crash_count))
-#             remain = samples_per_round-len(arcis_spec[r])
-#             print('ARCiS crashed, computing remaining ' +str(remain)+' models.')
-#             logging.info('ARCiS crashed, computing remaining ' +str(remain)+' models.')
-
-#             theta_ac = proposal.sample((remain,))
-#             np_theta_ac = theta_ac.cpu().detach().numpy().reshape([-1, len(prior_bounds)])
-            
-#             if args.ynorm:
-#                 params_ac=yscaler.inverse_transform(np_theta_ac)
-#             else:
-#                 params_ac = np_theta_ac
-
-#             arcis_spec_ac=compute(params_ac, args.processes, args.output,args.input, args.input2, args.n_global, which,  args.ynorm, r, nr, obs, obs_spec,nwvl,args)
-
-#             sm_ac = np.sum(arcis_spec_ac, axis=1)
-
-#             arcis_spec[r] = np.concatenate((arcis_spec[r], arcis_spec_ac[sm_ac>=0]))
-#             np_theta[r] = np.concatenate((np_theta[r], np_theta_ac[sm_ac>=0]))
 
 def input_MAP(proposal, ynorm, yscaler, output, parnames, log):
     MAP = proposal.map(x=None, num_iter=100, num_to_optimize=100, learning_rate=0.01, init_method='posterior', 
@@ -172,3 +140,35 @@ def input_MAP(proposal, ynorm, yscaler, output, parnames, log):
                 else:
                     mapfile.write(f'{parnames[i]}={MAP[i]}\n')  
     return MAP
+
+def check_crash(arcis_spec, np_theta, samples_per_round, proposal, prior_bounds,  yscaler, args):
+    sm = np.sum(arcis_spec, axis=1)
+
+    arcis_spec = arcis_spec[sm>=0]
+    np_theta = np_theta[sm>=0]
+
+    # print(sm)
+
+    crash_count=0    
+    while len(arcis_spec)<samples_per_round:
+        crash_count+=1
+        add_log('Crash ',str(crash_count))
+        remain = samples_per_round-len(arcis_spec)
+        add_log('ARCiS crashed, computing remaining ' +str(remain)+' models.')
+
+        theta_ac = proposal.sample((remain,))
+        np_theta_ac = theta_ac.cpu().detach().numpy().reshape([-1, len(prior_bounds)])
+
+        if ynorm:
+            params_ac=yscaler.inverse_transform(np_theta_ac)
+        else:
+            params_ac = np_theta_ac
+
+        arcis_spec_ac=compute(params_ac, args.processes, args.output,args.input, args.input2, args.n_global, which,  args.ynorm, r, nr, obs, obs_spec,nwvl,args)
+
+        sm_ac = np.sum(arcis_spec_ac, axis=1)
+
+        arcis_spec = np.concatenate((arcis_spec, arcis_spec_ac[sm_ac>=0]))
+        np_theta = np.concatenate((np_theta, np_theta_ac[sm_ac>=0]))
+        
+    return arcis_spec, np_theta

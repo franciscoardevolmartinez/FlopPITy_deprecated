@@ -189,6 +189,9 @@ while r<num_rounds:
         arcis_spec[r] = compute(np_theta[r], args.processes, args.output, args.input, args.input2, args.n_global, which, 
                                 args.ynorm, yscaler, r, nr, obs, obs_spec,nwvl,args)
         
+        #### Check that all models were computed
+        arcis_spec[r], np_theta[r] = check_crash(arcis_spec[r], np_theta[r], samples_per_round, proposal, prior_bounds,  yscaler, args)
+        
           
         ##### PREPROCESS DATA
 
