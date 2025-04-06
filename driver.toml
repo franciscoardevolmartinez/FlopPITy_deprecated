@@ -1,0 +1,21 @@
+[files]
+input = ''
+output = ''
+
+[training_settings]
+num_rounds = 
+samples_per_round = 
+
+[NSF_hyperparameters]
+hidden=
+transforms=
+tail_bound=
+bins=
+blocks=
+dropout=
+patience=
+atoms=
+
+[preprocessing]
+xnorm=
+ynorm=

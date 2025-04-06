@@ -41,7 +41,7 @@ def parse_args():
     parser.add_argument('-num_rounds', type=int, default=10, help='Number of rounds to train for. Default: 10.')
     parser.add_argument('-forward', type=str, default='ARCiS')
     parser.add_argument('-samples_per_round', type=int, default=1000, help='Number of samples to draw for training each round. Default: 1000.')
-    parser.add_argument('-hidden', type=int, default=50)
+    parser.add_argument('-hidden', type=int, default=50, help='Number of neurons per layer in the ResNet')
     parser.add_argument('-transforms', type=int, default=15)
     parser.add_argument('-tail_bound', type=float, default=3.0)
     parser.add_argument('-custom_nsf', action='store_true')
@@ -75,12 +75,13 @@ def parse_args():
     parser.add_argument('-npew', type=int, default=5000)
     parser.add_argument('-fit_offset', action='store_true')
     parser.add_argument('-max_offset', type=float, default=1e-2)
+    parser.add_argument('-fit_scaling', action='store_true')
+    parser.add_argument('-max_scaling', type=float, default=0.1)
     return parser.parse_args()
 
 args = parse_args()
 
 work_dir = os.getcwd()+'/' #Get directory
-
 
 ##### CREATE FOLDERS TO SAVE OUTPUT
 p = Path(args.output)
@@ -104,7 +105,7 @@ add_log('Command line arguments: '+ str(args))
 
 
 ##### READ ARCiS INPUT FILE
-parnames, prior_bounds, obs, obs_spec, noise_spec, nr, which, init2, nwvl, log = read_input(args)
+parnames, prior_bounds, obs, obs_spec, noise_spec, nr, which, init2, nwvl, log, arcis_par = read_input(args)
 
 
 #######  REMOVE MEAN? Useful for transmission spectra
@@ -116,7 +117,6 @@ else:
 
 ##### EMBEDDING NETWORK
 summary = createEmbedding(args.embedding, args.embedding_type, args.embed_size, args.embed_hypers, args.rem_mean, obs_spec.shape[0])
-
 
 
 ##### PRIOR 
@@ -164,7 +164,7 @@ samples_per_round = args.samples_per_round
 
 ##### LOAD FILES IF RESUMING
 if args.resume:
-    np_theta, arcis_spec, posteriors, proposal, samples, logZs, inference, inference_object, xscaler, yscaler, pca, r, num_rounds = load_files(args.output, args.xnorm, args.ynorm, args.do_pca)
+    np_theta, arcis_spec, posteriors, proposal, samples, logZs, inference, inference_object, xscaler, yscaler, pca, r, num_rounds = load_files(args.output, args.xnorm, args.ynorm, args.do_pca, args.num_rounds)
     
 while r<num_rounds:
     add_log('#####  Round '+str(r)+'  #####')
@@ -175,30 +175,22 @@ while r<num_rounds:
         np_theta[r] = pickle.load(open(args.prior_dir+'/Y.p', 'rb'))[0][:samples_per_round]
     else:
         
-        ##### GENERATE TRAINING EXAMPLES
-        
-        
-        ##### DRAW SAMPLES (θ)
-        
+        ##### GENERATE TRAINING EXAMPLES:
+        ##### 1. Draw samples (θ)
         np_theta[r] = sample_proposal(r, proposal, samples_per_round, prior_bounds, args.tail_bound, args.input2, 
                                       args.n_global, init2)
-
         
-        ##### COMPUTE MODELS (x)
-        
+        ##### Compute models (x)
         arcis_spec[r] = compute(np_theta[r], args.processes, args.output, args.input, args.input2, args.n_global, which, 
-                                args.ynorm, yscaler, r, nr, obs, obs_spec,nwvl,args)
+                                args.ynorm, yscaler, r, nr, obs, obs_spec,nwvl,arcis_par, parnames, args)
         
         #### Check that all models were computed
-        arcis_spec[r], np_theta[r] = check_crash(arcis_spec[r], np_theta[r], samples_per_round, proposal, prior_bounds,  yscaler, args)
+        arcis_spec[r], np_theta[r] = check_crash(arcis_spec[r], np_theta[r], samples_per_round, proposal, prior_bounds,  yscaler, which, r, nr, obs, obs_spec, nwvl, arcis_par, parnames,args)
         
           
-        ##### PREPROCESS DATA
-
+    ##### PREPROCESS DATA
     theta_aug, x, xscaler, pca = preprocess(np_theta[r], arcis_spec[r], r, samples_per_round, obs_spec, noise_spec, args.naug,
                                             args.do_pca, args.n_pca, args.xnorm, nwvl, args.rem_mean, args.output, args.device, args)
-    
-    
     
     ##### Save models and parameters
     add_log('Saving training examples...')
@@ -206,7 +198,6 @@ while r<num_rounds:
         pickle.dump(arcis_spec, file_arcis_spec)
     with open(args.output+'/Y.p', 'wb') as file_np_theta:
         pickle.dump(np_theta, file_np_theta)
-        
         
     ### COMPUTE IS efficiency
     if r>0:
@@ -219,22 +210,22 @@ while r<num_rounds:
         w_is.append(w_i)
         neffs.append(eff)
     
-    
     ##### TRAIN NSF
-    inference_object = inference.append_simulations(theta_aug, x, proposal=proposal)
-        
-    current_inference_object = inference_object
-    posterior_estimator = current_inference_object.train(show_train_summary=True, stop_after_epochs=args.patience,
+    # inference_object = inference.append_simulations(theta_aug, x, proposal=proposal)
+    inference.append_simulations(theta_aug, x, proposal=proposal)
+
+    # current_inference_object = inference_object
+    posterior_estimator = inference.train(show_train_summary=True, stop_after_epochs=args.patience,
                                                          num_atoms=args.atoms,force_first_round_loss=True,
                                                          retrain_from_scratch=args.retrain_from_scratch, use_combined_loss=True) 
 
     default_x = xscaler.transform(pca.transform(rem_mean.transform(obs_spec.reshape(1,-1))))
 
-    posterior = current_inference_object.build_posterior(posterior_estimator).set_default_x(default_x)
+    posterior = inference.build_posterior(posterior_estimator).set_default_x(default_x)
         
     
     posteriors.append(posterior)
-    inference_object=current_inference_object
+    # inference_object=current_inference_object
     proposal = posterior
 
     
@@ -250,6 +241,9 @@ while r<num_rounds:
     add_log('Saving posteriors ')
     with open(args.output+'/posteriors.pt', 'wb') as file_posteriors:
         torch.save(posteriors, file_posteriors)
+
+    with open(args.output+'/inference.p', 'wb') as file_inference:
+        pickle.dump(inference, file_inference)
  
     ##### Save samples
     add_log('Saving samples ')
@@ -269,11 +263,11 @@ while r<num_rounds:
                     
     ### Tidy up files  
     print('Tidying up...')
-    offsets = np.loadtxt(f'{args.output}/offsets_round_{r}_{0}.dat')
-    for i in range(1,args.processes):
-        offsets=np.concatenate((offsets, np.loadtxt(f'{args.output}/offsets_round_{r}_{i}.dat')))
-    with open(f'{args.output}/offsets_round_{r}.npy', 'wb') as file_offsets:
-        np.save(file_offsets, offsets)    
+    # offsets = np.loadtxt(f'{args.output}/offsets_round_{r}_{0}.dat')
+    # for i in range(1,args.processes):
+    #     offsets=np.concatenate((offsets, np.loadtxt(f'{args.output}/offsets_round_{r}_{i}.dat')))
+    # with open(f'{args.output}/offsets_round_{r}.npy', 'wb') as file_offsets:
+    #     np.save(file_offsets, offsets)    
     
     Ts = np.load(f'{args.output}/T_round_{r}{0}.npy')
     for i in range(1,args.processes):

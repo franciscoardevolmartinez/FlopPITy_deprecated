@@ -56,6 +56,7 @@ def read_input(args):
 
     parnames=[]
     prior_bounds=[]
+    arcis_par=0
     log=[]
     i=0
     while i<len(clean_in):
@@ -67,6 +68,7 @@ def read_input(args):
         if 'fitpar:keyword' in clean_in[i]:
             parnames.append(clean_in[i][16:-1])
             which.append(1)
+            arcis_par+=1
             if clean_in[i+3]=='fitpar:log=.true.':
                 prior_bounds.append([np.log10(float(clean_in[i+1][11:].replace('d','e'))), np.log10(float(clean_in[i+2][11:].replace('d','e')))])
                 log.append(True)
@@ -118,21 +120,8 @@ def read_input(args):
     
     if args.fit_frac:
         parnames.append('frac')
+        log.append(False)
         prior_bounds.append([0.,1.])
-        
-    # if args.fit_offset:
-    #     offsets=args.prior_offset.split(',')
-    #     for i in range(len(offsets)):
-    #         offsets[i]=float(offsets[i])
-    #     # offset_lim = np.empty(len(offsets)//2)
-    #     for i in range(len(offsets)//2):
-    #         # offsets[i]=float(offsets[i])
-    #         parnames.append(f'offset_{i}')
-    #         log.append(False)
-    #         prior_bounds.append([offsets[2*i], offsets[2*i+1]])
-        
-    
-    prior_bounds=np.array(prior_bounds)
 
     ### READ OBSERVATIONS
     obs=[]
@@ -158,16 +147,32 @@ def read_input(args):
         l.append(len(phasej))
         obs_spec[sum(l[:j+1]):sum(l[:j+2])] = phasej[:,1]
         noise_spec[sum(l[:j+1]):sum(l[:j+2])] = phasej[:,2]
+        
+        
+    ### Add scaling as parameter    
+    if args.fit_scaling:
+        for i in range(1, len(obs)):
+            parnames.append(f'scaling_{i}')
+            log.append(False)
+            prior_bounds.append([1-args.max_scaling, 1+args.max_scaling])
+
+    if args.fit_offset:
+        for i in range(1, len(obs)):
+            parnames.append(f'offset_{i}')
+            log.append(False)
+            prior_bounds.append([-args.max_offset, args.max_offset])
     
     # if args.fit_offset:
     #     assert len(offsets)//2<len(obs), f'Are you sure you want more offsets ({len(offsets)}) than observations ({len(obs)})?'
+    
+    prior_bounds=np.array(prior_bounds)
         
     plot_info={}
     plot_info['parnames']=parnames
     plot_info['prior_bounds']=prior_bounds
     pickle.dump(plot_info, open(f'{args.output}/plot_info.p', 'wb'))
           
-    return parnames, prior_bounds, obs, obs_spec, noise_spec, nr, which, init2, nwvl, log
+    return parnames, prior_bounds, obs, obs_spec, noise_spec, nr, which, init2, nwvl, log, arcis_par
 
 # def x2Ppoints(x, nTpoints):
 #     Pmin=1e2
@@ -179,7 +184,7 @@ def read_input(args):
 #             Ppoint[j,i] = 10**(np.log10(Ppoint[j,i-1]) + np.log10(Pmax/Ppoint[j,i-1]) * (1- x[j]**(1/(nTpoints-i+1))))
 #     return Ppoint
 
-def simulator(fparameters, directory, r, input_file, input2_file, n_global, which, transobs, nr, n, n_obs, size, nwvl, args):
+def simulator(fparameters, parnames, directory, r, input_file, input2_file, n_global, which, transobs, nr, n, n_obs, size, nwvl, arcis_par, args):
     fname = directory+'/round_'+str(r)+str(n)+'_samples.dat'
     
     # if args.fit_offset:
@@ -187,7 +192,8 @@ def simulator(fparameters, directory, r, input_file, input2_file, n_global, whic
     #     parameters=fparameters[:,:-len(offsets)//2]
     #     offset = fparameters[:,-len(offsets)//2:]
     # else:
-    parameters=fparameters
+        
+    parameters=fparameters[:, :arcis_par]
     
     if input2_file!='aintnothinhere':
         print('Writing parametergridfile for 2nd limb')
@@ -350,7 +356,26 @@ def simulator(fparameters, directory, r, input_file, input2_file, n_global, whic
     else:
         arcis_spec=arcis_spec1
         
-    #### THIS IS A VERY QUICK FIX,,, FIX LATER 
+
+    if args.fit_scaling and n_obs>1:
+        for i in range(parameters.shape[0]):
+            for o in range(len(parnames[arcis_par:])):
+                scaling=[]
+                if 'scaling' in parnames[arcis_par:][o]:
+                    scaling.append(fparameters[i, arcis_par:][o])
+            for j in range(1,n_obs):
+                arcis_spec[i][int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))] *= scaling[j-1]
+    
+    
+    if args.fit_offset and n_obs>1:
+        for i in range(parameters.shape[0]):
+            offset=[]
+            for o in range(len(parnames[arcis_par:])):
+                if 'offset' in parnames[arcis_par:][o]:
+                    offset.append(fparameters[i, arcis_par:][o])
+            for j in range(1,n_obs):
+                arcis_spec[i][int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))] += offset[j-1]
+    '''
     offset = np.empty([parameters.shape[0], n_obs-1])
     if args.fit_offset and n_obs>1:
         print('Fitting offsets...')
@@ -380,8 +405,8 @@ def simulator(fparameters, directory, r, input_file, input2_file, n_global, whic
                     offset[i][j-1]=delta
                     
                 arcis_spec[i][int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))] += offset[i][j-1]
+    '''
     
-    
-    np.savetxt(f'{directory}/offsets_round_{r}_{n}.dat', offset)
+    # np.savetxt(f'{directory}/offsets_round_{r}_{n}.dat', offset)
     
     return arcis_spec

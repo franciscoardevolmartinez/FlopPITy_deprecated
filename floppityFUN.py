@@ -252,7 +252,7 @@ class rm_mean():
         return arcis_spec
 
 ### COMPUTE FORWARD MODELS FROM NORMALISED PARAMETERS
-def compute(np_theta, nprocesses, output, arginput, arginput2, n_global, which, ynorm, yscaler, r, nr, obs, obs_spec,nwvl,args):
+def compute(np_theta, nprocesses, output, arginput, arginput2, n_global, which, ynorm, yscaler, r, nr, obs, obs_spec,nwvl,arcis_par, parnames, args):
     
     if args.ynorm:
         params=yscaler.inverse_transform(np_theta)
@@ -276,7 +276,7 @@ def compute(np_theta, nprocesses, output, arginput, arginput2, n_global, which, 
     #     parargs.append((params[(args.processes-1)*samples_per_process:], args.output, r, args.input, freeT, nTpoints, nr,args.processes-1, len(obs), len(obs_spec)))
     # else:
     for i in range(nprocesses):
-        parargs.append((params[i*samples_per_process[i]:(i+1)*samples_per_process[i]], output, r, arginput, arginput2, n_global, which, obs_spec, nr, i, len(obs), len(obs_spec),nwvl, args))
+        parargs.append((params[i*samples_per_process[i]:(i+1)*samples_per_process[i]], parnames, output, r, arginput, arginput2, n_global, which, obs_spec, nr, i, len(obs), len(obs_spec),nwvl, arcis_par, args))
     # parargs.append((params[(nprocesses-1)*samples_per_process:], output, r, arginput, arginput2, n_global, which, nr, nprocesses-1, len(obs), len(obs_spec),nwvl, args))
 
     # tic=time()
