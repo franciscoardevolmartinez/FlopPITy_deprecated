@@ -1,28 +1,18 @@
 import argparse
 from pathlib import Path
 import torch
-import torch.nn as nn
 # from torchmetrics.functional import kl_divergence
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning)
 import pickle
 import numpy as np
 from sbi import utils as utils
-from sbi.inference import SNPE_C
-from sbi.utils.get_nn_models import posterior_nn
-from time import time
 import logging
 import os
 logging.getLogger('matplotlib').setLevel(logging.WARNING)
-import matplotlib.pyplot as plt
-from corner import corner
-from sbi.neural_nets.embedding_nets import FCEmbedding, CNNEmbedding, PermutationInvariantEmbedding
-from sbi.inference import MCMCPosterior, RejectionPosterior, ImportanceSamplingPosterior
-from sbi.inference import DirectPosterior, likelihood_estimator_based_potential, posterior_estimator_based_potential
 from floppityFUN import *
 from simulator import *
 from modules import *
-import subprocess
 
 # os.system('cd MulteXBI; git rev-parse HEAD > MulteXBI/gitversion.txt')
 
@@ -39,34 +29,35 @@ def parse_args():
     parser.add_argument('-output', type=str, default='output', help='Directory to save output')
     parser.add_argument('-device', type=str, default='cpu', help='Device to use for training. Default: CPU.')
     parser.add_argument('-num_rounds', type=int, default=10, help='Number of rounds to train for. Default: 10.')
-    parser.add_argument('-forward', type=str, default='ARCiS')
+    # parser.add_argument('-forward', type=str, default='ARCiS')
     parser.add_argument('-samples_per_round', type=int, default=1000, help='Number of samples to draw for training each round. Default: 1000.')
     parser.add_argument('-hidden', type=int, default=50, help='Number of neurons per layer in the ResNet')
-    parser.add_argument('-transforms', type=int, default=15)
+    parser.add_argument('-transforms', type=int, default=10)
     parser.add_argument('-tail_bound', type=float, default=3.0)
-    parser.add_argument('-custom_nsf', action='store_true')
+    # parser.add_argument('-custom_nsf', action='store_true')
     parser.add_argument('-do_pca', action='store_true')
     parser.add_argument('-rem_mean', action='store_true')
     parser.add_argument('-res_scale', action='store_true')
     parser.add_argument('-naug', type=int, default=1, help='Data augmentation factor')
     parser.add_argument('-n_pca', type=int, default=50)
+    parser.add_argument('-flow', type=str, default='nsf')
     parser.add_argument('-embed_size', type=str, default='64')
     parser.add_argument('-embedding', action='store_true')
     parser.add_argument('-embedding_type', type=str, default='CNN', help='Can be FC, CNN or multi')
-    parser.add_argument('-embed_hypers', type=str, default='2, 6, 2, 64, 5')
-    parser.add_argument('-bins', type=int, default=10)
+    parser.add_argument('-embed_hypers', type=str, default='2, 4, 2, 64, 5')
+    parser.add_argument('-bins', type=int, default=8)
     parser.add_argument('-twoterms', action='store_true')
-    parser.add_argument('-blocks', type=int, default=2)
+    parser.add_argument('-blocks', type=int, default=3)
     parser.add_argument('-ynorm', action='store_true')
     parser.add_argument('-xnorm', action='store_true')
-    parser.add_argument('-Ztol', type=float, default=0.5)
-    parser.add_argument('-convergence_criterion', type=str, default='absolute_error', help='Other options are: strictly_positive, ')
+    # parser.add_argument('-Ztol', type=float, default=0.5)
+    # parser.add_argument('-convergence_criterion', type=str, default='absolute_error', help='Other options are: strictly_positive, ')
     parser.add_argument('-retrain_from_scratch', action='store_true')
-    parser.add_argument('-Zrounds', type=int, default=2)
-    parser.add_argument('-dropout', type=float, default=0)
-    parser.add_argument('-max_reject', type=int, default=3)
+    # parser.add_argument('-Zrounds', type=int, default=2)
+    parser.add_argument('-dropout', type=float, default=0.1)
+    # parser.add_argument('-max_reject', type=int, default=3)
     parser.add_argument('-processes', type=int, default=1)
-    parser.add_argument('-patience', type=int, default=5)
+    parser.add_argument('-patience', type=int, default=10)
     parser.add_argument('-atoms', type=int, default=10)
     parser.add_argument('-resume', action='store_true')
     parser.add_argument('-reuse_prior_samples', action='store_true')
@@ -77,6 +68,9 @@ def parse_args():
     parser.add_argument('-max_offset', type=float, default=1e-2)
     parser.add_argument('-fit_scaling', action='store_true')
     parser.add_argument('-max_scaling', type=float, default=0.1)
+    parser.add_argument('-fit_vrot', action='store_true')
+    parser.add_argument('-min_vrot', type=float)
+    parser.add_argument('-max_vrot', type=float)
     return parser.parse_args()
 
 args = parse_args()
@@ -90,7 +84,7 @@ p.mkdir(parents=True, exist_ok=True)
 imgs = Path(args.output+'/Figures')
 imgs.mkdir(parents=False, exist_ok=True)
 
-logs = Path(args.output+'/'+args.forward+'_logs')
+logs = Path(args.output+'/ARCiS_logs')
 logs.mkdir(parents=False, exist_ok=True)
 
 
@@ -105,7 +99,7 @@ add_log('Command line arguments: '+ str(args))
 
 
 ##### READ ARCiS INPUT FILE
-parnames, prior_bounds, obs, obs_spec, noise_spec, nr, which, init2, nwvl, log, arcis_par = read_input(args)
+parnames, prior_bounds, obs, wvl_spec, obs_spec, noise_spec, nr, which, init2, nwvl, log, arcis_par = read_input(args)
 
 
 #######  REMOVE MEAN? Useful for transmission spectra
@@ -130,7 +124,7 @@ prior = create_prior(prior_bounds, args.ynorm, yscaler, args.tail_bound, args.de
 
 ####### CREATE q(θ|x) 
 
-inference = density_builder(args.transforms, args.hidden, args.bins, summary, args.blocks, args.dropout, prior, args.device)
+inference = density_builder(args.flow, args.transforms, args.hidden, args.bins, summary, args.blocks, args.dropout, prior, args.device)
 
 proposal=prior
 
@@ -182,10 +176,10 @@ while r<num_rounds:
         
         ##### Compute models (x)
         arcis_spec[r] = compute(np_theta[r], args.processes, args.output, args.input, args.input2, args.n_global, which, 
-                                args.ynorm, yscaler, r, nr, obs, obs_spec,nwvl,arcis_par, parnames, args)
+                                args.ynorm, yscaler, r, nr, obs, wvl_spec, obs_spec,nwvl,arcis_par, parnames, args)
         
         #### Check that all models were computed
-        arcis_spec[r], np_theta[r] = check_crash(arcis_spec[r], np_theta[r], samples_per_round, proposal, prior_bounds,  yscaler, which, r, nr, obs, obs_spec, nwvl, arcis_par, parnames,args)
+        arcis_spec[r], np_theta[r] = check_crash(arcis_spec[r], np_theta[r], samples_per_round, proposal, prior_bounds,  yscaler, which, r, nr, obs, wvl_spec, obs_spec, nwvl, arcis_par, parnames,args)
         
           
     ##### PREPROCESS DATA

@@ -1,10 +1,19 @@
 [files]
-input = ''
-output = ''
+input = 'input.dat'
+output = 'Retrieval/'
 
 [training_settings]
-num_rounds = 
-samples_per_round = 
+num_rounds = 10
+samples_per_round = 1024
+resume = False
+reuse_prior = False
+prior_dir = ''
+
+[embedding]
+embedding = False
+embed_size = 500
+embedding_type = 'FCNet'
+embed_hypers = {}
 
 [NSF_hyperparameters]
 hidden=
@@ -19,3 +28,10 @@ atoms=
 [preprocessing]
 xnorm=
 ynorm=
+
+[postprocessing]
+fit_offset=
+offset_prior=
+fit_scaling=
+scaling_prior=
+
