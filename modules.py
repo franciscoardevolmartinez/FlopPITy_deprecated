@@ -1,4 +1,3 @@
-from floppityFUN import *
 from sbi.neural_nets.embedding_nets import FCEmbedding, CNNEmbedding, PermutationInvariantEmbedding
 import torch
 from sbi import utils as utils
@@ -9,6 +8,8 @@ from sbi.utils.get_nn_models import posterior_nn
 import logging
 import numpy as np
 import os
+from simulator import *
+from floppityFUN import *
 
 def add_log(string):
     print(string)
