@@ -16,6 +16,7 @@ from tqdm import trange
 from multiprocessing import Process
 from multiprocessing import Process, Pool
 import pickle
+from modules import *
 
 #### There should be at least two functions in this file:
 ####   - One called 'read_input' that returns a list with the names of the parameters, the prior bounds (as a list of tuples, only supports uniform priors for now), 
@@ -140,11 +141,13 @@ def read_input(args):
     for i in range(len(obs)):
         nwvl[i] = int(len(np.loadtxt(obs[i])[:,0]))
     l=[0]
+    wvl_spec = np.zeros(int(sum(nwvl)))
     obs_spec = np.zeros(int(sum(nwvl)))
     noise_spec =np.zeros(int(sum(nwvl)))
     for j in range(len(obs)):
         phasej = np.loadtxt(obs[j])
         l.append(len(phasej))
+        wvl_spec[sum(l[:j+1]):sum(l[:j+2])] = phasej[:,0]
         obs_spec[sum(l[:j+1]):sum(l[:j+2])] = phasej[:,1]
         noise_spec[sum(l[:j+1]):sum(l[:j+2])] = phasej[:,2]
         
@@ -161,6 +164,12 @@ def read_input(args):
             parnames.append(f'offset_{i}')
             log.append(False)
             prior_bounds.append([-args.max_offset, args.max_offset])
+
+    ### Add vrot as parameter
+    if args.fit_vrot:
+        parnames.append(f'vrot')
+        log.append(False)
+        prior_bounds.append([args.min_vrot, args.max_vrot])
     
     # if args.fit_offset:
     #     assert len(offsets)//2<len(obs), f'Are you sure you want more offsets ({len(offsets)}) than observations ({len(obs)})?'
@@ -172,7 +181,7 @@ def read_input(args):
     plot_info['prior_bounds']=prior_bounds
     pickle.dump(plot_info, open(f'{args.output}/plot_info.p', 'wb'))
           
-    return parnames, prior_bounds, obs, obs_spec, noise_spec, nr, which, init2, nwvl, log, arcis_par
+    return parnames, prior_bounds, obs, wvl_spec, obs_spec, noise_spec, nr, which, init2, nwvl, log, arcis_par
 
 # def x2Ppoints(x, nTpoints):
 #     Pmin=1e2
@@ -184,7 +193,7 @@ def read_input(args):
 #             Ppoint[j,i] = 10**(np.log10(Ppoint[j,i-1]) + np.log10(Pmax/Ppoint[j,i-1]) * (1- x[j]**(1/(nTpoints-i+1))))
 #     return Ppoint
 
-def simulator(fparameters, parnames, directory, r, input_file, input2_file, n_global, which, transobs, nr, n, n_obs, size, nwvl, arcis_par, args):
+def simulator(fparameters, parnames, directory, r, input_file, input2_file, n_global, which, wvl_spec, nr, n, n_obs, size, nwvl, arcis_par, args):
     fname = directory+'/round_'+str(r)+str(n)+'_samples.dat'
     
     # if args.fit_offset:
@@ -194,6 +203,7 @@ def simulator(fparameters, parnames, directory, r, input_file, input2_file, n_gl
     # else:
         
     parameters=fparameters[:, :arcis_par]
+    extra_pars=fparameters[:, arcis_par:]
     
     if input2_file!='aintnothinhere':
         print('Writing parametergridfile for 2nd limb')
@@ -235,9 +245,9 @@ def simulator(fparameters, parnames, directory, r, input_file, input2_file, n_gl
 
     dirx = directory + '/round_'+str(r)+str(n)+'_out/'
     
-    print('All is good\n')
+    # print('All is good\n')
     arcis_spec1 = -1*np.ones([parameters.shape[0], size])
-    print('If you\'re seeing this, I\'m not replicating michiels issue\n')    
+    # print('If you\'re seeing this, I\'m not replicating michiels issue\n')    
         
     print('Reading ARCiS output')
     # logging.info('Reading ARCiS output')
@@ -359,11 +369,11 @@ def simulator(fparameters, parnames, directory, r, input_file, input2_file, n_gl
 
     if args.fit_scaling and n_obs>1:
         for i in range(parameters.shape[0]):
+            scaling=[]
             for o in range(len(parnames[arcis_par:])):
-                scaling=[]
                 if 'scaling' in parnames[arcis_par:][o]:
-                    scaling.append(fparameters[i, arcis_par:][o])
-            for j in range(1,n_obs):
+                    scaling.append(extra_pars[i][o])
+            for j in range(1, n_obs):
                 arcis_spec[i][int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))] *= scaling[j-1]
     
     
@@ -372,41 +382,20 @@ def simulator(fparameters, parnames, directory, r, input_file, input2_file, n_gl
             offset=[]
             for o in range(len(parnames[arcis_par:])):
                 if 'offset' in parnames[arcis_par:][o]:
-                    offset.append(fparameters[i, arcis_par:][o])
-            for j in range(1,n_obs):
+                    offset.append(extra_pars[i][o])
+            for j in range(1, n_obs):
                 arcis_spec[i][int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))] += offset[j-1]
-    '''
-    offset = np.empty([parameters.shape[0], n_obs-1])
-    if args.fit_offset and n_obs>1:
-        print('Fitting offsets...')
+    
+    if args.fit_vrot:
+        for o in range(len(parnames[arcis_par:])):
+            if 'vrot' in parnames[arcis_par:][o]:
+                vrots = extra_pars[:,o]
         for i in range(parameters.shape[0]):
-            
-            # Find the offset between the fixed observation and the spectrum
-            # eps0 = scale(transobs[int(sum(nwvl[:0])):int(sum(nwvl[:0+1]))], arcis_spec[i][int(sum(nwvl[:0])):int(sum(nwvl[:0+1]))])
-            # arcis_spec[i]+=eps0
-            
-            for j in range(1,n_obs):
-                eps = scale(transobs[int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))], arcis_spec[i][int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))]) # Finding optimal scaling
-                # delta=0.5*(max(transobs)-min(transobs))
-                delta=8e-4
-                
-                # 
-                # delta=eps-eps0
-#                 if abs(delta)<args.max_offset:
-#                     offset[i][j-1]=delta
-#                 else:
-#                     offset[i][j-1]=np.sign(delta)*args.max_offset
-                    
-#                 arcis_spec[i][int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))] += offset[i][j-1]
-
-                if abs(eps)<delta:
-                    offset[i][j-1]=eps
-                else:
-                    offset[i][j-1]=delta
-                    
-                arcis_spec[i][int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))] += offset[i][j-1]
-    '''
-    
-    # np.savetxt(f'{directory}/offsets_round_{r}_{n}.dat', offset)
-    
+            for j in range(1, n_obs):
+                unbroadened = arcis_spec[i][int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))]
+                wvl = wvl_spec[int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))]
+                broadened = rot_int_cmj(wvl, unbroadened, vrots[i])
+                arcis_spec[i][int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))] = broadened
+    # if args.test_box:
+        
     return arcis_spec

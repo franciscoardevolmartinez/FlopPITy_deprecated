@@ -18,6 +18,7 @@ import os
 logging.getLogger('matplotlib').setLevel(logging.WARNING)
 from sbi.neural_nets.embedding_nets import FCEmbedding, CNNEmbedding, PermutationInvariantEmbedding
 from simulator import *
+from modules import *
 
 ### (Log) likelihood. Necessary to compute (log) evidence
 def likelihood(obs, err, x):
@@ -252,7 +253,7 @@ class rm_mean():
         return arcis_spec
 
 ### COMPUTE FORWARD MODELS FROM NORMALISED PARAMETERS
-def compute(np_theta, nprocesses, output, arginput, arginput2, n_global, which, ynorm, yscaler, r, nr, obs, obs_spec,nwvl,arcis_par, parnames, args):
+def compute(np_theta, nprocesses, output, arginput, arginput2, n_global, which, ynorm, yscaler, r, nr, obs, wvl_spec, obs_spec,nwvl,arcis_par, parnames, args):
     
     if args.ynorm:
         params=yscaler.inverse_transform(np_theta)
@@ -276,7 +277,7 @@ def compute(np_theta, nprocesses, output, arginput, arginput2, n_global, which, 
     #     parargs.append((params[(args.processes-1)*samples_per_process:], args.output, r, args.input, freeT, nTpoints, nr,args.processes-1, len(obs), len(obs_spec)))
     # else:
     for i in range(nprocesses):
-        parargs.append((params[i*samples_per_process[i]:(i+1)*samples_per_process[i]], parnames, output, r, arginput, arginput2, n_global, which, obs_spec, nr, i, len(obs), len(obs_spec),nwvl, arcis_par, args))
+        parargs.append((params[i*samples_per_process[i]:(i+1)*samples_per_process[i]], parnames, output, r, arginput, arginput2, n_global, which, wvl_spec, nr, i, len(obs), len(obs_spec),nwvl, arcis_par, args))
     # parargs.append((params[(nprocesses-1)*samples_per_process:], output, r, arginput, arginput2, n_global, which, nr, nprocesses-1, len(obs), len(obs_spec),nwvl, args))
 
     # tic=time()
@@ -360,6 +361,12 @@ def preprocess(np_theta, arcis_spec, r, samples_per_round, obs_spec,noise_spec,n
     else:
         rem_mean=do_nothing()
     
+    # all_spec = 
+
+    # pca.fit(rem_mean.transform(all_spec))
+    # with open(output+'/pca.p', 'wb') as file_pca:
+    #     pickle.dump(pca, file_pca)
+
     if r==0:
         
         pca.fit(rem_mean.transform(arcis_spec))
@@ -376,5 +383,8 @@ def preprocess(np_theta, arcis_spec, r, samples_per_round, obs_spec,noise_spec,n
         x_f = torch.tensor(xscaler.transform(pca.transform(sigma_res_scale.transform(arcis_spec_aug, obs_spec.reshape(1,-1), noise_spec.reshape(1,-1)))), dtype=torch.float32, device=device)
     else:
         x_f = torch.tensor(xscaler.transform(pca.transform(rem_mean.transform(arcis_spec_aug))), dtype=torch.float32, device=device)
+
+    max_err = max(pca_error(pca, arcis_spec).flatten())
+    print(f'Maximum PCA reconstruction error: {max_err}')
 
     return theta_aug, x_f, xscaler, pca

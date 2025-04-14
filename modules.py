@@ -19,7 +19,7 @@ def createEmbedding(embedding, embedding_type, embed_size, embed_hypers, rem_mea
     if embedding:
         if embedding_type=='FC':
             add_log('Using a fully connected embedding network.')
-            summary = FCNet(nwvl, embed_size)
+            summary = FCEmbedding(nwvl, embed_size)
         elif embedding_type=='CNN':
             add_log('Using a convolutional embedding network.')
             num_conv_layers, out_channels_per_layer, num_linear_layers, num_linear_units, kernel_size, output_dims = unroll_embed_hypers(embed_hypers, embed_size)
@@ -55,9 +55,9 @@ def create_prior(prior_bounds, ynorm, yscaler, tail_bound, device, output):
     
     return prior
 
-def density_builder(transforms, hidden, bins, summary, blocks, dropout, prior, device):
+def density_builder(flow, transforms, hidden, bins, summary, blocks, dropout, prior, device):
 
-    density_estimator_build_fun = posterior_nn(model="nsf", num_transforms=transforms, hidden_features=hidden, num_bins=bins, embedding_net=summary, num_blocks=blocks, dropout_probability=dropout)
+    density_estimator_build_fun = posterior_nn(model=flow, num_transforms=transforms, hidden_features=hidden, num_bins=bins, embedding_net=summary, num_blocks=blocks, dropout_probability=dropout)
     inference = SNPE_C(prior = prior, density_estimator=density_estimator_build_fun, device=device)
     
     return inference
@@ -103,7 +103,7 @@ def sample_proposal(r, proposal, samples_per_round, prior_bounds, tail_bound, in
             np_theta = -tail_bound+(2*tail_bound)*Sobol(len(prior_bounds)).random_base2(int(np.log2(samples_per_round)))
         except:
             print('The number of samples per round needs to be a power of 2.')
-            
+
     if input2!='aintnothinhere':
         for i in range(samples_per_round):
             if np_theta[i,n_global]<np_theta[i,init2]:
@@ -113,6 +113,56 @@ def sample_proposal(r, proposal, samples_per_round, prior_bounds, tail_bound, in
                 np_theta[i,init2] = lT
     
     return np_theta
+
+def rot_int_cmj(w, s, vsini, eps=0.6, nr=10, ntheta=100, dif = 0.0):
+    '''
+    A routine to quickly rotationally broaden a spectrum in linear time.
+
+    INPUTS:
+    s - input spectrum
+
+    w - wavelength scale of the input spectrum
+    
+    vsini (km/s) - projected rotational velocity
+    
+    OUTPUT:
+    ns - a rotationally broadened spectrum on the wavelength scale w
+
+    OPTIONAL INPUTS:
+    eps (default = 0.6) - the coefficient of the limb darkening law
+    
+    nr (default = 10) - the number of radial bins on the projected disk
+    
+    ntheta (default = 100) - the number of azimuthal bins in the largest radial annulus
+                            note: the number of bins at each r is int(r*ntheta) where r < 1
+    
+    dif (default = 0) - the differential rotation coefficient, applied according to the law
+    Omeg(th)/Omeg(eq) = (1 - dif/2 - (dif/2) cos(2 th)). Dif = .675 nicely reproduces the law 
+    proposed by Smith, 1994, A&A, Vol. 287, p. 523-534, to unify WTTS and CTTS. Dif = .23 is 
+    similar to observed solar differential rotation. Note: the th in the above expression is 
+    the stellar co-latitude, not the same as the integration variable used below. This is a 
+    disk integration routine.
+
+    '''
+
+    ns = np.copy(s)*0.0
+    tarea = 0.0
+    dr = 1./nr
+    for j in range(0, nr):
+        r = dr/2.0 + j*dr
+        area = ((r + dr/2.0)**2 - (r - dr/2.0)**2)/int(ntheta*r) * (1.0 - eps + eps*np.cos(np.arcsin(r)))
+        for k in range(0,int(ntheta*r)):
+            th = np.pi/int(ntheta*r) + k * 2.0*np.pi/int(ntheta*r)
+            if dif != 0:
+                vl = vsini * r * np.sin(th) * (1.0 - dif/2.0 - dif/2.0*np.cos(2.0*np.arccos(r*np.cos(th))))
+                ns += area * np.interp(w + w*vl/2.9979e5, w, s)
+                tarea += area
+            else:
+                vl = r * vsini * np.sin(th)
+                ns += area * np.interp(w + w*vl/2.9979e5, w, s)
+                tarea += area
+          
+    return ns/tarea
 
 def input_MAP(proposal, ynorm, yscaler, output, parnames, log):
     MAP = proposal.map(x=None, num_iter=100, num_to_optimize=100, learning_rate=0.01, init_method='posterior', 
@@ -142,7 +192,7 @@ def input_MAP(proposal, ynorm, yscaler, output, parnames, log):
                     mapfile.write(f'{parnames[i]}={MAP[i]}\n')  
     return MAP
 
-def check_crash(arcis_spec, np_theta, samples_per_round, proposal, prior_bounds,  yscaler, which, r, nr, obs, obs_spec, nwvl, arcis_par, parnames,args):
+def check_crash(arcis_spec, np_theta, samples_per_round, proposal, prior_bounds,  yscaler, which, r, nr, obs, wvl_spec, obs_spec, nwvl, arcis_par, parnames,args):
     sm = np.sum(arcis_spec, axis=1)
 
     arcis_spec = arcis_spec[sm>=0]
@@ -165,7 +215,7 @@ def check_crash(arcis_spec, np_theta, samples_per_round, proposal, prior_bounds,
         else:
             params_ac = np_theta_ac
 
-        arcis_spec_ac=compute(params_ac, args.processes, args.output,args.input, args.input2, args.n_global, which,  args.ynorm, yscaler, r, nr, obs, obs_spec, nwvl, arcis_par, parnames, args)
+        arcis_spec_ac=compute(params_ac, args.processes, args.output,args.input, args.input2, args.n_global, which,  args.ynorm, yscaler, r, nr, obs, wvl_spec, obs_spec, nwvl, arcis_par, parnames, args)
 
         sm_ac = np.sum(arcis_spec_ac, axis=1)
 
@@ -173,3 +223,13 @@ def check_crash(arcis_spec, np_theta, samples_per_round, proposal, prior_bounds,
         np_theta = np.concatenate((np_theta, np_theta_ac[sm_ac>=0]))
         
     return arcis_spec, np_theta
+
+def pca_error(pca, spectra):
+    '''
+    Returns the error incurred in when reconstructing the spectra using
+    the principal components
+    '''
+    transforms = pca.transform(spectra)
+    reconstructed = pca.inverse_transform(transforms)
+
+    return abs(spectra-reconstructed)
