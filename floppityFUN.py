@@ -298,6 +298,38 @@ def compute(np_theta, nprocesses, output, arginput, arginput2, n_global, which, 
     
     return arcis_spec
 
+def check_crash(arcis_spec, np_theta, samples_per_round, proposal, prior_bounds,  yscaler, which, r, nr, obs, wvl_spec, obs_spec, nwvl, arcis_par, parnames,args):
+    sm = np.sum(arcis_spec, axis=1)
+
+    arcis_spec = arcis_spec[sm>=0]
+    np_theta = np_theta[sm>=0]
+
+    # print(sm)
+
+    crash_count=0    
+    while len(arcis_spec)<samples_per_round:
+        crash_count+=1
+        add_log(f'Crash {crash_count}')
+        remain = samples_per_round-len(arcis_spec)
+        add_log('ARCiS crashed, computing remaining ' +str(remain)+' models.')
+
+        theta_ac = proposal.sample((remain,))
+        np_theta_ac = theta_ac.cpu().detach().numpy().reshape([-1, len(prior_bounds)])
+
+        if args.ynorm:
+            params_ac=yscaler.inverse_transform(np_theta_ac)
+        else:
+            params_ac = np_theta_ac
+
+        arcis_spec_ac=compute(params_ac, args.processes, args.output,args.input, args.input2, args.n_global, which,  args.ynorm, yscaler, r, nr, obs, wvl_spec, obs_spec, nwvl, arcis_par, parnames, args)
+
+        sm_ac = np.sum(arcis_spec_ac, axis=1)
+
+        arcis_spec = np.concatenate((arcis_spec, arcis_spec_ac[sm_ac>=0]))
+        np_theta = np.concatenate((np_theta, np_theta_ac[sm_ac>=0]))
+        
+    return arcis_spec, np_theta
+
 def compute_2term(params1,nprocesses, output, arginput, ynorm, r, nr, obs, obs_spec):
     samples_per_process = 2*len(params1)//nprocesses
 
@@ -388,3 +420,13 @@ def preprocess(np_theta, arcis_spec, r, samples_per_round, obs_spec,noise_spec,n
     print(f'Maximum PCA reconstruction error: {max_err}')
 
     return theta_aug, x_f, xscaler, pca
+
+def pca_error(pca, spectra):
+    '''
+    Returns the error incurred in when reconstructing the spectra using
+    the principal components
+    '''
+    transforms = pca.transform(spectra)
+    reconstructed = pca.inverse_transform(transforms)
+
+    return abs(spectra-reconstructed)
