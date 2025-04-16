@@ -183,6 +183,7 @@ while r<num_rounds:
         
           
     ##### PREPROCESS DATA
+    add_log('Preprocessing data...')
     theta_aug, x, xscaler, pca = preprocess(np_theta[r], arcis_spec[r], r, samples_per_round, obs_spec, noise_spec, args.naug,
                                             args.do_pca, args.n_pca, args.xnorm, nwvl, args.rem_mean, args.output, args.device, args)
     

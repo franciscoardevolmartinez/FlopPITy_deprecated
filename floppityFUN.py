@@ -288,7 +288,11 @@ def compute(np_theta, nprocesses, output, arginput, arginput2, n_global, which, 
     with Pool(processes = nprocesses) as pool:
         # Simulator is function that returns spectra (needs to be same units as observation)
         arcis_specs = pool.starmap(simulator, parargs)
+    
+    add_log('Combining parallel processes...')
     arcis_spec = np.concatenate(arcis_specs)
+
+    add_log('Cleaning up...')
     for j in range(nprocesses):
         os.system('mv '+output + '/round_'+str(r)+str(j)+'_out/log.dat '+output +'/ARCiS_logs/log_'+str(r)+str(j)+'.dat')
         os.system('rm -rf '+output + '/round_'+str(r)+str(j)+'_out/')
@@ -363,6 +367,8 @@ def compute_2term(params1,nprocesses, output, arginput, ynorm, r, nr, obs, obs_s
     # tic=time()
     with Pool(processes = nprocesses) as pool:
         arcis_specs = pool.starmap(simulator, parargs)
+    
+    add_log('Combining parallel processes...')
     arcis_spec = np.concatenate(arcis_specs)
     # print('Time elapsed: ', time()-tic)
     # logging.info(('Time elapsed: ', time()-tic))

@@ -369,6 +369,7 @@ def simulator(fparameters, parnames, directory, r, input_file, input2_file, n_gl
         
 
     if args.fit_scaling and n_obs>1:
+        add_log('Adding scalings...')
         for i in range(parameters.shape[0]):
             scaling=[]
             for o in range(len(parnames[arcis_par:])):
@@ -379,6 +380,7 @@ def simulator(fparameters, parnames, directory, r, input_file, input2_file, n_gl
     
     
     if args.fit_offset and n_obs>1:
+        add_log('Adding offsets...')
         for i in range(parameters.shape[0]):
             offset=[]
             for o in range(len(parnames[arcis_par:])):
@@ -388,6 +390,7 @@ def simulator(fparameters, parnames, directory, r, input_file, input2_file, n_gl
                 arcis_spec[i][int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))] += offset[j-1]
     
     if args.fit_vrot:
+        add_log('Adding rotational broadening...')
         for o in range(len(parnames[arcis_par:])):
             if 'vrot' in parnames[arcis_par:][o]:
                 vrots = extra_pars[:,o]
