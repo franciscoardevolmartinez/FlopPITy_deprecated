@@ -71,6 +71,11 @@ def parse_args():
     parser.add_argument('-fit_vrot', action='store_true')
     parser.add_argument('-min_vrot', type=float)
     parser.add_argument('-max_vrot', type=float)
+    parser.add_argument('-RV', type=float, default=0)
+    parser.add_argument('-vrot', type=float, default=0)
+    parser.add_argument('-fit_RV', action='store_true')
+    parser.add_argument('-min_RV', type=float)
+    parser.add_argument('-max_RV', type=float)
     return parser.parse_args()
 
 args = parse_args()

@@ -12,7 +12,6 @@ import numpy as np
 import logging
 logging.getLogger('matplotlib').setLevel(logging.WARNING)
 import os
-
 from tqdm import trange
 from multiprocessing import Process
 from multiprocessing import Process, Pool
@@ -30,7 +29,6 @@ def delta(o,m,s):  ### wtf is this???
 def scale(obs, model):
     scale = 1/len(obs)*(sum(obs-model))
     return scale
-
 
 def read_input(args):
     
@@ -53,7 +51,6 @@ def read_input(args):
     
     which = []
         
-
     freeT=False
 
     parnames=[]
@@ -166,11 +163,17 @@ def read_input(args):
             log.append(False)
             prior_bounds.append([-args.max_offset, args.max_offset])
 
-    ### Add vrot as parameter
+    ### Add vrot as parameter (km/s)
     if args.fit_vrot:
         parnames.append(f'vrot')
         log.append(False)
         prior_bounds.append([args.min_vrot, args.max_vrot])
+
+    ### Add RV as parameter (km/s)
+    if args.fit_RV:
+        parnames.append(f'RV')
+        log.append(False)
+        prior_bounds.append([args.min_RV, args.max_RV])
     
     # if args.fit_offset:
     #     assert len(offsets)//2<len(obs), f'Are you sure you want more offsets ({len(offsets)}) than observations ({len(obs)})?'
@@ -400,6 +403,30 @@ def simulator(fparameters, parnames, directory, r, input_file, input2_file, n_gl
                 wvl = wvl_spec[int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))]
                 broadened = rot_int_cmj(wvl, unbroadened, vrots[i])
                 arcis_spec[i][int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))] = broadened
+    elif args.vrot>0:
+        for j in range(1, n_obs):
+            unbroadened = arcis_spec[i][int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))]
+            wvl = wvl_spec[int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))]
+            broadened = rot_int_cmj(wvl, unbroadened, args.vrot)
+            arcis_spec[i][int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))] = broadened
+
+    if args.fit_RV:
+        add_log('Adding rotational broadening...')
+        for o in range(len(parnames[arcis_par:])):
+            if 'RV' in parnames[arcis_par:][o]:
+                vrots = extra_pars[:,o]
+        for i in range(parameters.shape[0]):
+            for j in range(1, n_obs):
+                unbroadened = arcis_spec[i][int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))]
+                wvl = wvl_spec[int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))]
+                broadened = rot_int_cmj(wvl, unbroadened, vrots[i])
+                arcis_spec[i][int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))] = broadened
+    elif args.RV>0:
+        for j in range(1, n_obs):
+            unshifted = arcis_spec[i][int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))]
+            wvl = wvl_spec[int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))]
+            shifted = dopplerShift(wvl, unbroadened, args.vrot)
+            arcis_spec[i][int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))] = broadened
     # if args.test_box:
         
     return arcis_spec
