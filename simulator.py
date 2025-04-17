@@ -416,13 +416,14 @@ def simulator(fparameters, parnames, directory, r, input_file, input2_file, n_gl
             if 'RV' in parnames[arcis_par:][o]:
                 vrots = extra_pars[:,o]
         for i in range(parameters.shape[0]):
-            for j in range(1, n_obs):
+            for j in range(n_obs):
                 unbroadened = arcis_spec[i][int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))]
                 wvl = wvl_spec[int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))]
                 broadened = rot_int_cmj(wvl, unbroadened, vrots[i])
                 arcis_spec[i][int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))] = broadened
+
     elif args.RV>0:
-        for j in range(1, n_obs):
+        for j in range(n_obs):
             unshifted = arcis_spec[i][int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))]
             wvl = wvl_spec[int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))]
             shifted = dopplerShift(wvl, unbroadened, args.vrot)
