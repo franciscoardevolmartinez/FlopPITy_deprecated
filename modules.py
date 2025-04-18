@@ -168,6 +168,8 @@ def rot_int_cmj(w, s, vsini, eps=0.6, nr=10, ntheta=100, dif = 0.0):
     return ns/tarea
 
 def input_MAP(proposal, ynorm, yscaler, output, parnames, log):
+
+    add_log('Finding MAP...')
     MAP = proposal.map(x=None, num_iter=100, num_to_optimize=100, learning_rate=0.01, init_method='posterior', 
                        num_init_samples=1000, save_best_every=10, show_progress_bars=True, force_update=False)
 
@@ -308,5 +310,5 @@ def dopplerShift(wvl, flux, v, edgeHandling=None, fillValue=None):
             # if err is not None:
             #     nerr[lvindex+1:] = nerr[lvindex]
 
-    return nflux, wlprime
+    return nflux
 

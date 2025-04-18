@@ -149,7 +149,6 @@ def read_input(args):
         obs_spec[sum(l[:j+1]):sum(l[:j+2])] = phasej[:,1]
         noise_spec[sum(l[:j+1]):sum(l[:j+2])] = phasej[:,2]
         
-        
     ### Add scaling as parameter    
     if args.fit_scaling:
         for i in range(1, len(obs)):
@@ -372,7 +371,7 @@ def simulator(fparameters, parnames, directory, r, input_file, input2_file, n_gl
         
 
     if args.fit_scaling and n_obs>1:
-        add_log('Adding scalings...')
+        add_log('Fitting scalings...')
         for i in range(parameters.shape[0]):
             scaling=[]
             for o in range(len(parnames[arcis_par:])):
@@ -383,7 +382,7 @@ def simulator(fparameters, parnames, directory, r, input_file, input2_file, n_gl
     
     
     if args.fit_offset and n_obs>1:
-        add_log('Adding offsets...')
+        add_log('Fitting offsets...')
         for i in range(parameters.shape[0]):
             offset=[]
             for o in range(len(parnames[arcis_par:])):
@@ -393,27 +392,9 @@ def simulator(fparameters, parnames, directory, r, input_file, input2_file, n_gl
                 arcis_spec[i][int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))] += offset[j-1]
     
     if args.fit_vrot:
-        add_log('Adding rotational broadening...')
+        add_log('Fitting rotational broadening...')
         for o in range(len(parnames[arcis_par:])):
             if 'vrot' in parnames[arcis_par:][o]:
-                vrots = extra_pars[:,o]
-        for i in range(parameters.shape[0]):
-            for j in range(1, n_obs):
-                unbroadened = arcis_spec[i][int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))]
-                wvl = wvl_spec[int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))]
-                broadened = rot_int_cmj(wvl, unbroadened, vrots[i])
-                arcis_spec[i][int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))] = broadened
-    elif args.vrot>0:
-        for j in range(1, n_obs):
-            unbroadened = arcis_spec[i][int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))]
-            wvl = wvl_spec[int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))]
-            broadened = rot_int_cmj(wvl, unbroadened, args.vrot)
-            arcis_spec[i][int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))] = broadened
-
-    if args.fit_RV:
-        add_log('Adding rotational broadening...')
-        for o in range(len(parnames[arcis_par:])):
-            if 'RV' in parnames[arcis_par:][o]:
                 vrots = extra_pars[:,o]
         for i in range(parameters.shape[0]):
             for j in range(n_obs):
@@ -422,12 +403,35 @@ def simulator(fparameters, parnames, directory, r, input_file, input2_file, n_gl
                 broadened = rot_int_cmj(wvl, unbroadened, vrots[i])
                 arcis_spec[i][int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))] = broadened
 
-    elif args.RV>0:
-        for j in range(n_obs):
-            unshifted = arcis_spec[i][int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))]
-            wvl = wvl_spec[int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))]
-            shifted = dopplerShift(wvl, unbroadened, args.vrot)
-            arcis_spec[i][int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))] = broadened
+    elif args.vrot>0:
+        add_log('Adding rotational broadening...')
+        for i in range(parameters.shape[0]):
+            for j in range(1, n_obs):
+                unbroadened = arcis_spec[i][int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))]
+                wvl = wvl_spec[int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))]
+                broadened = rot_int_cmj(wvl, unbroadened, args.vrot)
+                arcis_spec[i][int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))] = broadened
+
+    if args.fit_RV:
+        add_log('Fitting Doppler shift...')
+        for o in range(len(parnames[arcis_par:])):
+            if 'RV' in parnames[arcis_par:][o]:
+                RVs = extra_pars[:,o]
+        for i in range(parameters.shape[0]):
+            for j in range(n_obs):
+                unshifted = arcis_spec[i][int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))]
+                wvl = wvl_spec[int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))]
+                shifted = dopplerShift(wvl, unshifted, RVs[i], edgeHandling='firstlast')
+                arcis_spec[i][int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))] = shifted
+
+    elif args.RV!=0:
+        add_log('Adding Doppler shift...')
+        for i in range(parameters.shape[0]):
+            for j in range(n_obs):
+                unshifted = arcis_spec[i][int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))]
+                wvl = wvl_spec[int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))]
+                shifted = dopplerShift(wvl, unshifted, args.RV, edgeHandling='firstlast')
+                arcis_spec[i][int(sum(nwvl[:j])):int(sum(nwvl[:j+1]))] = shifted
     # if args.test_box:
         
     return arcis_spec
