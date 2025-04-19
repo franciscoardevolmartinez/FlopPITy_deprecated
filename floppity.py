@@ -269,12 +269,13 @@ while r<num_rounds:
     # with open(f'{args.output}/offsets_round_{r}.npy', 'wb') as file_offsets:
     #     np.save(file_offsets, offsets)    
     
-    Ts = np.load(f'{args.output}/T_round_{r}{0}.npy')
-    for i in range(1,args.processes):
-        Ts=np.concatenate((Ts, np.load(f'{args.output}/T_round_{r}{i}.npy')))
-    with open(f'{args.output}/T_round_{r}.npy', 'wb') as file_Ts:
-        np.save(file_Ts, Ts)  
-    
+    if (args.reuse_prior_samples and r>0) or (not args.reuse_prior_samples):
+        Ts = np.load(f'{args.output}/T_round_{r}{0}.npy')
+        for i in range(1,args.processes):
+            Ts=np.concatenate((Ts, np.load(f'{args.output}/T_round_{r}{i}.npy')))
+        with open(f'{args.output}/T_round_{r}.npy', 'wb') as file_Ts:
+            np.save(file_Ts, Ts)  
+        
     for j in range(args.processes):
         os.system(f'rm -rf {args.output}/offsets_round_{r}_{j}.dat')
         os.system(f'rm -rf {args.output}/T_round_{r}{j}.npy')
