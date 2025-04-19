@@ -41,7 +41,7 @@ def parse_args():
     parser.add_argument('-naug', type=int, default=1, help='Data augmentation factor')
     parser.add_argument('-n_pca', type=int, default=50)
     parser.add_argument('-flow', type=str, default='nsf')
-    parser.add_argument('-embed_size', type=str, default='64')
+    parser.add_argument('-embed_size', type=int, default=64)
     parser.add_argument('-embedding', action='store_true')
     parser.add_argument('-embedding_type', type=str, default='CNN', help='Can be FC, CNN or multi')
     parser.add_argument('-embed_hypers', type=str, default='2, 4, 2, 64, 5')
@@ -115,7 +115,7 @@ else:
 
 
 ##### EMBEDDING NETWORK
-summary = createEmbedding(args.embedding, args.embedding_type, args.embed_size, args.embed_hypers, args.rem_mean, obs_spec.shape[0])
+summary = createEmbedding(args.embedding, args.embedding_type, args.embed_size, args.embed_hypers, args.rem_mean, sum(nwvl))
 
 
 ##### PRIOR 

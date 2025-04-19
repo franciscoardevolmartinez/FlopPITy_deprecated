@@ -22,7 +22,7 @@ def createEmbedding(embedding, embedding_type, embed_size, embed_hypers, rem_mea
     if embedding:
         if embedding_type=='FC':
             add_log('Using a fully connected embedding network.')
-            summary = FCEmbedding(input_dim=sum(nwvl), num_hiddens=256, num_layers=4, output_dim=embed_size)
+            summary = FCEmbedding(input_dim=nwvl, num_hiddens=256, num_layers=4, output_dim=embed_size)
         elif embedding_type=='CNN':
             add_log('Using a convolutional embedding network.')
             num_conv_layers, out_channels_per_layer, num_linear_layers, num_linear_units, kernel_size, output_dims = unroll_embed_hypers(embed_hypers, embed_size)
