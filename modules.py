@@ -311,4 +311,3 @@ def dopplerShift(wvl, flux, v, edgeHandling=None, fillValue=None):
             #     nerr[lvindex+1:] = nerr[lvindex]
 
     return nflux
-
