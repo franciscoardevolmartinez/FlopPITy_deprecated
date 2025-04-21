@@ -200,6 +200,7 @@ while r<num_rounds:
         pickle.dump(np_theta, file_np_theta)
         
     ### COMPUTE IS efficiency
+    '''
     if r>0:
         w_i, eff = IS(posteriors[-1], obs_spec, noise_spec, arcis_spec[r], np_theta[r])
         logZ_is, logZ_err_is = evidence_from_IS(w_i, eff)
@@ -209,7 +210,7 @@ while r<num_rounds:
     
         w_is.append(w_i)
         neffs.append(eff)
-    
+    '''
     ##### TRAIN NSF
     # inference_object = inference.append_simulations(theta_aug, x, proposal=proposal)
     inference.append_simulations(theta_aug, x, proposal=proposal)
@@ -230,6 +231,7 @@ while r<num_rounds:
 
     
     ##### Save files
+    '''
     if r>0:
         with open(args.output+'/importance_weights.p', 'wb') as file_w_is:
             add_log('Saving importance weights...')
@@ -237,7 +239,7 @@ while r<num_rounds:
         with open(args.output+'/importance_effs.p', 'wb') as file_neffs:
             add_log('Saving importance efficiencies...')
             pickle.dump(neffs, file_neffs)
-
+    '''
     add_log('Saving posteriors ')
     with open(args.output+'/posteriors.pt', 'wb') as file_posteriors:
         torch.save(posteriors, file_posteriors)
