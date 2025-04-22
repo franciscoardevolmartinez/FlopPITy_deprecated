@@ -284,10 +284,11 @@ def simulator(fparameters, parnames, directory, r, input_file, input2_file, n_gl
                 obsn = '/obs0'+str(j+1)
             try:
                 phasej = np.loadtxt(model_dir+obsn)[:,1]
+                l.append(len(phasej))
             except:
                 print(f'Couldn\'t store observation {model_dir}{obsn}')
                 logging.info(f'Couldn\'t store observation {model_dir}{obsn}')
-            l.append(len(phasej))
+            
             
             if not(np.any(phasej<0) or np.any(np.isnan(phasej)) or np.any(np.isinf(phasej))):
                 # print(phasej)
